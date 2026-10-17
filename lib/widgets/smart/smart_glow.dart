@@ -8,9 +8,9 @@ import 'package:flutter/material.dart';
 import 'package:waffr/core/theme/app_motion.dart';
 import 'package:waffr/core/theme/app_palette.dart';
 
-// The four glow hues: the app accent, then greens and teals that cool
-// toward a soft blue. Kept mostly green so the smart features carry the
-// app's own identity.
+/// The four glow hues: the app accent, then greens and teals that cool
+/// toward a soft blue. Kept mostly green so the smart features carry the
+/// app's own identity.
 List<Color> smartGlowColors(BuildContext context) {
   final accent = AppPalette.of(context).accent;
   return [
@@ -21,12 +21,16 @@ List<Color> smartGlowColors(BuildContext context) {
   ];
 }
 
-// Any icon painted in the smart colors, for smart features that keep their
-// own glyph (alerts, auto category).
+/// Any icon painted in the smart colors, for smart features that keep their
+/// own glyph (alerts, auto category).
 class SmartGradientIcon extends StatelessWidget {
+  /// The icon.
   final IconData icon;
+
+  /// Icon size.
   final double size;
 
+  /// Creates a [SmartGradientIcon].
   const SmartGradientIcon(this.icon, {super.key, this.size = 22});
 
   @override
@@ -44,16 +48,19 @@ class SmartGradientIcon extends StatelessWidget {
   }
 }
 
+/// The moving color glow behind the smart analysis.
 class SmartGlowBackground extends StatefulWidget {
-  // 0 hides the glow, 1 is the full "generating" strength.
+  /// 0 hides the glow, 1 is the full "generating" strength.
   final double intensity;
 
+  /// Creates a [SmartGlowBackground].
   const SmartGlowBackground({super.key, required this.intensity});
 
   @override
   State<SmartGlowBackground> createState() => _SmartGlowBackgroundState();
 }
 
+/// State of [SmartGlowBackground].
 class _SmartGlowBackgroundState extends State<SmartGlowBackground>
     with SingleTickerProviderStateMixin {
   late final AnimationController _drift = AnimationController(
@@ -114,6 +121,7 @@ class _SmartGlowBackgroundState extends State<SmartGlowBackground>
   }
 }
 
+/// Paints the drifting color blobs of the glow.
 class _GlowPainter extends CustomPainter {
   final Animation<double> drift;
   final double intensity;
@@ -167,17 +175,22 @@ class _GlowPainter extends CustomPainter {
       !listEquals(old.colors, colors);
 }
 
-// A sparkle inside a rotating color ring, the "thinking" mark.
+/// A sparkle inside a rotating color ring, the "thinking" mark.
 class SmartSpark extends StatefulWidget {
+  /// Width and height.
   final double size;
+
+  /// Spins the ring while true.
   final bool spinning;
 
+  /// Creates a [SmartSpark].
   const SmartSpark({super.key, this.size = 28, this.spinning = false});
 
   @override
   State<SmartSpark> createState() => _SmartSparkState();
 }
 
+/// State of [SmartSpark].
 class _SmartSparkState extends State<SmartSpark>
     with SingleTickerProviderStateMixin {
   late final AnimationController _spin = AnimationController(
@@ -271,7 +284,7 @@ class _SmartSparkState extends State<SmartSpark>
   }
 }
 
-// Three-segment trend line, painted white so the ShaderMask colors it.
+/// Three-segment trend line, painted white so the ShaderMask colors it.
 class _TrendLinePainter extends CustomPainter {
   const _TrendLinePainter();
 
@@ -299,6 +312,7 @@ class _TrendLinePainter extends CustomPainter {
   bool shouldRepaint(_TrendLinePainter oldDelegate) => false;
 }
 
+/// The color ring around the spark.
 class _RingPainter extends CustomPainter {
   final double rotation;
   final List<Color> colors;

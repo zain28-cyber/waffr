@@ -16,26 +16,45 @@ import 'package:waffr/data/services/usage_streak_service.dart';
 import 'package:waffr/data/stores/currency_store.dart';
 import 'package:waffr/data/stores/recurring_expense_store.dart';
 import 'package:waffr/data/stores/transaction_store.dart';
+import 'package:waffr/core/utils/calendar_days.dart';
 
+/// Writes the figures the home screen widgets show and asks them to redraw.
 class HomeWidgetSync {
   HomeWidgetSync._();
 
+  /// The app-wide service.
   static final HomeWidgetSync instance = HomeWidgetSync._();
 
-  // Shared with the iOS widget extension (App Groups capability).
+  /// Shared with the iOS widget extension (App Groups capability).
   static const String appGroupId = 'group.com.waffr.app';
 
   static const List<({String android, String ios})> _widgets = [
-    (android: 'com.waffr.app.widgets.BalanceWidgetProvider', ios: 'WaffrBalanceWidget'),
-    (android: 'com.waffr.app.widgets.QuickAddWidgetProvider', ios: 'WaffrQuickAddWidget'),
-    (android: 'com.waffr.app.widgets.GoalWidgetProvider', ios: 'WaffrGoalWidget'),
-    (android: 'com.waffr.app.widgets.ObligationWidgetProvider', ios: 'WaffrObligationWidget'),
-    (android: 'com.waffr.app.widgets.StreakWidgetProvider', ios: 'WaffrStreakWidget'),
+    (
+      android: 'com.waffr.app.widgets.BalanceWidgetProvider',
+      ios: 'WaffrBalanceWidget',
+    ),
+    (
+      android: 'com.waffr.app.widgets.QuickAddWidgetProvider',
+      ios: 'WaffrQuickAddWidget',
+    ),
+    (
+      android: 'com.waffr.app.widgets.GoalWidgetProvider',
+      ios: 'WaffrGoalWidget',
+    ),
+    (
+      android: 'com.waffr.app.widgets.ObligationWidgetProvider',
+      ios: 'WaffrObligationWidget',
+    ),
+    (
+      android: 'com.waffr.app.widgets.StreakWidgetProvider',
+      ios: 'WaffrStreakWidget',
+    ),
   ];
 
   bool _started = false;
   Timer? _debounce;
 
+  /// True on Android and iOS, the platforms with widgets.
   static bool get supported =>
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.android ||
@@ -70,6 +89,7 @@ class HomeWidgetSync {
     _debounce = Timer(const Duration(milliseconds: 800), refresh);
   }
 
+  /// Saves fresh widget data and redraws every widget; errors are ignored.
   Future<void> refresh() async {
     if (!supported) return;
     try {
@@ -114,7 +134,9 @@ class HomeWidgetSync {
               saved: store.goalProgress(store.activeGoals.first),
             ),
       obligations: [
-        for (final item in recurring.itemsFor(CurrencyStore.instance.activeCode))
+        for (final item in recurring.itemsFor(
+          CurrencyStore.instance.activeCode,
+        ))
           if (item.enabled)
             (
               name: item.note?.trim().isNotEmpty == true
@@ -181,7 +203,7 @@ Map<String, Object> buildHomeWidgetData({
   } else {
     final next = upcoming.first;
     final dueDay = DateTime(next.due.year, next.due.month, next.due.day);
-    final days = dueDay.difference(today).inDays;
+    final days = calendarDaysBetween(today, dueDay);
     data['obligation_empty'] = false;
     data['obligation_name'] = next.name;
     data['obligation_amount'] = '${formatMoney(next.amount)} $symbol';

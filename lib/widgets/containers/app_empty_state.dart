@@ -1,16 +1,23 @@
 // The one "nothing here yet" block: muted icon, short title, optional hint.
 // Lists, cards and sheets all use it so empty screens look the same.
 import 'package:flutter/material.dart';
-import 'package:waffr/core/theme/app_color.dart';
+import 'package:waffr/core/theme/app_palette.dart';
 
+/// The shared empty-state block.
 class AppEmptyState extends StatelessWidget {
+  /// Muted icon on top.
   final IconData icon;
+
+  /// Short title.
   final String title;
+
+  /// Optional hint under the title.
   final String? message;
 
   /// Smaller variant for dashboard cards.
   final bool compact;
 
+  /// Creates a [AppEmptyState].
   const AppEmptyState({
     super.key,
     required this.icon,
@@ -21,14 +28,15 @@ class AppEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textPrimary =
-        isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final textSecondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final palette = AppPalette.of(context);
+    final textPrimary = palette.textPrimary;
+    final textSecondary = palette.textSecondary;
 
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: compact ? 12 : 28, horizontal: 16),
+      padding: EdgeInsets.symmetric(
+        vertical: compact ? 12 : 28,
+        horizontal: 16,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

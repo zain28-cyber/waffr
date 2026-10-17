@@ -1,3 +1,6 @@
+// Wipes every piece of Waffr data on this device: prefs, the session,
+// and each store's memory.
+
 import 'package:waffr/data/stores/expense_preset_store.dart';
 import 'package:waffr/data/stores/category_store.dart';
 import 'package:waffr/data/services/notification_service.dart';
@@ -11,6 +14,7 @@ import 'package:waffr/data/stores/currency_store.dart';
 import 'package:waffr/data/stores/transaction_store.dart';
 import 'package:waffr/core/sync/auth_session.dart';
 import 'package:waffr/core/prefs/app_prefs.dart';
+import 'package:waffr/core/sync/sync_tombstones.dart';
 
 /// Wipes Waffr data on this device only (prefs, session, store caches).
 class LocalDataReset {
@@ -34,6 +38,7 @@ class LocalDataReset {
     RecurringExpenseStore.instance.resetCache();
     CategoryStore.instance.resetCache();
     ExpensePresetStore.instance.resetCache();
+    SyncTombstones.instance.resetCache();
     SmartSettings.instance.resetCache();
   }
 }

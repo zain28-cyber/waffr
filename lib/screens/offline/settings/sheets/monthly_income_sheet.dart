@@ -1,4 +1,5 @@
-// Glass sheet for the monthly (or weekly) income amount, same shell as other sheets.
+// Glass sheet for the monthly (or weekly) income amount, same shell as other
+// sheets. It only returns the result; the caller saves it.
 
 import 'package:flutter/material.dart';
 import 'package:waffr/data/stores/currency_store.dart';
@@ -6,7 +7,9 @@ import 'package:waffr/core/utils/money.dart';
 import 'package:waffr/widgets/containers/glass_sheet.dart';
 import 'package:waffr/widgets/dialogs/edit_amount_dialog.dart';
 
-/// Opens the income editor as a sheet. Pops [EditAmountResult] or [AmountDialogCleared].
+/// Opens the income editor as a sheet. Pops [EditAmountResult] (amount and
+/// currency) or, when [allowClear] and the user taps remove,
+/// [AmountDialogCleared]; null when dismissed.
 Future<Object?> showMonthlyIncomeSheet(
   BuildContext context, {
   required String title,
@@ -23,6 +26,7 @@ Future<Object?> showMonthlyIncomeSheet(
   );
 }
 
+/// Amount + currency form with save and, optionally, a remove button.
 class _MonthlyIncomeSheet extends StatefulWidget {
   final String title;
   final double initialAmount;
@@ -38,7 +42,10 @@ class _MonthlyIncomeSheet extends StatefulWidget {
   State<_MonthlyIncomeSheet> createState() => _MonthlyIncomeSheetState();
 }
 
+/// State of [_MonthlyIncomeSheet]. Owns the amount controller, prefilled
+/// with the current income.
 class _MonthlyIncomeSheetState extends State<_MonthlyIncomeSheet> {
+  /// Upper bound for the income amount.
   static const double _maxAmount = 999999999;
 
   late final TextEditingController _controller;
@@ -65,6 +72,7 @@ class _MonthlyIncomeSheetState extends State<_MonthlyIncomeSheet> {
     super.dispose();
   }
 
+  /// Pops the entered amount and currency.
   void _save() {
     if (!_isValid) return;
     Navigator.of(context).pop(EditAmountResult(_amount, _currencyCode));
@@ -88,18 +96,13 @@ class _MonthlyIncomeSheetState extends State<_MonthlyIncomeSheet> {
           onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 22),
-        SheetSaveButton(
-          label: 'حفظ',
-          enabled: _isValid,
-          onTap: _save,
-        ),
+        SheetSaveButton(label: 'حفظ', enabled: _isValid, onTap: _save),
         if (widget.allowClear) ...[
           const SizedBox(height: 8),
           SheetDestructiveButton(
             label: 'إزالة الدخل',
-            onTap: () => Navigator.of(context).pop(
-              AmountDialogCleared(_currencyCode),
-            ),
+            onTap: () =>
+                Navigator.of(context).pop(AmountDialogCleared(_currencyCode)),
           ),
         ],
       ],

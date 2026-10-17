@@ -1,3 +1,5 @@
+"""Income and expense rows, and the recurring expenses that create them."""
+
 from datetime import datetime
 from decimal import Decimal
 
@@ -18,6 +20,8 @@ from database import MONEY, Base, ClientIdMixin, SoftDeleteMixin, TimestampMixin
 
 
 class Transaction(ClientIdMixin, SoftDeleteMixin, TimestampMixin, Base):
+    """One income or expense."""
+
     __tablename__ = "transactions"
     __table_args__ = (
         UniqueConstraint("user_id", "client_id", name="uq_transactions_user_client"),
@@ -83,6 +87,8 @@ class Transaction(ClientIdMixin, SoftDeleteMixin, TimestampMixin, Base):
 
 
 class RecurringExpense(ClientIdMixin, SoftDeleteMixin, TimestampMixin, Base):
+    """An expense repeated every interval_count periods."""
+
     __tablename__ = "recurring_expenses"
     __table_args__ = (
         UniqueConstraint(

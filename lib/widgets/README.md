@@ -1,27 +1,24 @@
 # lib/widgets
 
 Controls used by more than one feature. Feature-only widgets stay next to
-their screen.
+their screen. Widgets read `core/theme` tokens; only `sheet_amount_field.dart`
+and `edit_amount_dialog.dart` read a store (`CurrencyStore`).
 
-| Path | Use it for |
+| Folder | Use it for |
 | --- | --- |
-| `containers/glass.dart` | `GlassContainer`. Translucent card. No backdrop blur. |
-| `button/glass_button.dart` | The same surface with a press scale. |
-| `button/app_primary_button.dart` | The app's single primary action button (forms, screens, and sheets via `SheetSaveButton`). |
-| `containers/glass_sheet.dart` | Modal sheet shell, labels, amount field, chips, option rows, the (i) `SheetInfoButton`, save button. |
-| `dialogs/edit_amount_dialog.dart` | Edit a single amount. |
-| `dialogs/waffr_date_picker.dart` | Date and date-range picker with a typed field above the calendar. |
-| `dialogs/edit_delete_menu.dart` | The long-press edit / delete menu for tiles. |
-| `sheets/monthly_income_required_sheet.dart` | Prompt when a flow needs a monthly income first. |
-| `brand/waffr_logo.dart` | Logo and the startup splash. |
-| `brand/streak_celebration.dart` | The overlay shown when the streak grows on app open. |
-| `brand/waffr_page_header.dart` | The top bar. Pushed screens use `WaffrBackHeader` (back arrow + centered title). |
-| `brand/profile_avatar.dart` | Circular avatar, with an optional camera badge. |
-| `motion/motion.dart` | `Reveal` entrance, `RollingMoney`, `AnimatedRatio`, `staggered()` and `RevealClip`. Timings come from `AppMotion`. |
-| `smart/smart_analysis_button.dart` | The "تحليل ذكي" pill and the reports banner that open the smart analysis. |
-| `smart/smart_glow.dart` | The moving color glow and the spinning spark used while the analysis writes. |
+| [`containers/`](containers/README.md) | `GlassContainer` card, `FloatingGlass` chrome, `PinnedPeriodScrollView`, `AppListTile`, `AppEmptyState`, and the sheet toolkit `glass_sheet.dart` (re-exports `sheet_fields`, `sheet_amount_field`, `sheet_transitions`, `sheet_buttons`). |
+| [`button/`](button/README.md) | `AppPrimaryButton` (the one primary action, also behind `SheetSaveButton`), `GlassButton` / `GlassIconButton`. |
+| [`dialogs/`](dialogs/README.md) | `EditAmountDialog`, `showEditDeleteMenu`, `showWaffrDatePicker` / `showWaffrDateRangePicker`. |
+| [`sheets/`](sheets/README.md) | `showMonthlyIncomeRequiredSheet`. |
+| [`brand/`](brand/README.md) | `WaffrLogo` / `WaffrSplash`, `WaffrPageHeader` / `WaffrBackHeader`, `ProfileAvatar`, `StreakCelebrationOverlay`. |
+| [`motion/`](motion/README.md) | `Reveal`, `staggered()`, `RollingMoney`, `AnimatedRatio`, `RevealClip`, `ActiveListenableBuilder`. Timings come from `AppMotion`. |
+| [`smart/`](smart/README.md) | `SmartAnalysisButton` (pill, tile or banner) and the `SmartGlowBackground` / `SmartSpark` effects. |
 
 New sheets should start from `glass_sheet.dart` instead of copying the
 padding and the header row. Short explanations open through
 `SheetInfoButton` / `showAppInfoDialog`, and confirmations through
 `showAppConfirmDialog`, so every (i) and every question looks the same.
+
+Two widgets import from `lib/screens`: `pinned_period_scroll_view.dart`
+(shell layout constants) and `smart_analysis_button.dart` (opens
+`SmartAnalysisScreen`). Avoid adding more.

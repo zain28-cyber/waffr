@@ -5,10 +5,27 @@ import 'dart:convert';
 import 'package:waffr/data/models/currency.dart';
 import 'package:waffr/data/models/transaction.dart';
 
-// How long the user picked for the goal in the create dialog.
-enum GoalDurationPreset { week, month, threeMonths, sixMonths, year }
+/// How long the user picked for the goal in the create dialog.
+enum GoalDurationPreset {
+  /// One week.
+  week,
 
+  /// One month.
+  month,
+
+  /// Three months.
+  threeMonths,
+
+  /// Six months.
+  sixMonths,
+
+  /// One year.
+  year,
+}
+
+/// Labels and cycle counts of each [GoalDurationPreset].
 extension GoalDurationPresetLabel on GoalDurationPreset {
+  /// Arabic chip text.
   String get label => switch (this) {
     GoalDurationPreset.week => 'أسبوع',
     GoalDurationPreset.month => 'شهر',
@@ -17,7 +34,7 @@ extension GoalDurationPresetLabel on GoalDurationPreset {
     GoalDurationPreset.year => 'سنة',
   };
 
-  // Maps a raw cycle count back to the closest preset for the UI.
+  /// Maps a raw cycle count back to the closest preset for the UI.
   static GoalDurationPreset fromCount(
     int count, {
     RecurringFrequency frequency = RecurringFrequency.monthly,
@@ -35,7 +52,7 @@ extension GoalDurationPresetLabel on GoalDurationPreset {
     return GoalDurationPreset.year;
   }
 
-  // Deduction cycles for this preset given weekly vs monthly income.
+  /// Deduction cycles for this preset given weekly vs monthly income.
   int cycleCount(RecurringFrequency frequency) {
     return switch (this) {
       GoalDurationPreset.week => frequency == RecurringFrequency.weekly ? 1 : 1,
@@ -51,25 +68,55 @@ extension GoalDurationPresetLabel on GoalDurationPreset {
   }
 }
 
-// One savings goal. Progress only counts transfers after [createdAt];
-// lower [priority] sorts first in the list.
+/// One savings goal. Progress only counts transfers after [createdAt];
+/// lower [priority] sorts first in the list.
 class SavingsGoal {
+  /// Local id (also the sync client id).
   final String id;
+
+  /// Goal name.
   final String name;
+
+  /// Amount to reach.
   final double targetAmount;
+
+  /// Currency of the goal.
   final String currencyCode;
+
+  /// When it was created; only later transfers count.
   final DateTime createdAt;
+
+  /// When it was reached; null while active.
   final DateTime? completedAt;
+
+  /// Saved amount when it was reached.
   final double? completedAmount;
+
+  /// Planned length.
   final GoalDurationPreset duration;
+
+  /// Percent of income saved per period (percent plans).
   final double? allocatePercent;
+
+  /// Amount saved per period (periodic plans).
   final double? allocateAmount;
+
+  /// Weekly or monthly deduction cadence.
   final RecurringFrequency deductFrequency;
+
+  /// True when money is moved to it automatically each period.
   final bool isPeriodic;
+
+  /// Number of deduction periods, overriding [duration].
   final int? durationCount;
+
+  /// List order among goals; 0 is the top.
   final int priority;
+
+  /// Last change (UTC), for sync.
   final DateTime? updatedAt;
 
+  /// A goal.
   const SavingsGoal({
     required this.id,
     required this.name,
@@ -88,17 +135,19 @@ class SavingsGoal {
     this.updatedAt,
   });
 
+  /// Last change for sync, falling back to creation time.
   DateTime get syncUpdatedAt => (updatedAt ?? createdAt).toUtc();
 
-  // Prefer an explicit durationCount; otherwise derive from the preset.
+  /// Prefer an explicit durationCount; otherwise derive from the preset.
   int cyclesFor(RecurringFrequency frequency) {
     if (durationCount != null && durationCount! > 0) return durationCount!;
     return duration.cycleCount(frequency);
   }
 
+  /// True once the goal was reached.
   bool get isCompleted => completedAt != null;
 
-  // Copies fields; set [touch] to bump updatedAt for sync.
+  /// Copies fields; set [touch] to bump updatedAt for sync.
   SavingsGoal copyWith({
     DateTime? completedAt,
     double? completedAmount,
@@ -126,11 +175,11 @@ class SavingsGoal {
       isPeriodic: isPeriodic ?? this.isPeriodic,
       durationCount: durationCount ?? this.durationCount,
       priority: priority ?? this.priority,
-      updatedAt: updatedAt ??
-          (touch ? DateTime.now().toUtc() : this.updatedAt),
+      updatedAt: updatedAt ?? (touch ? DateTime.now().toUtc() : this.updatedAt),
     );
   }
 
+  /// The prefs JSON shape.
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
@@ -149,9 +198,10 @@ class SavingsGoal {
     'updatedAt': syncUpdatedAt.toIso8601String(),
   };
 
+  /// [toJson] as a string.
   String encode() => jsonEncode(toJson());
 
-  // Parses prefs JSON; returns null if name/target are missing or invalid.
+  /// Parses prefs JSON; returns null if name/target are missing or invalid.
   static SavingsGoal? decode(String raw) {
     try {
       final decoded = jsonDecode(raw);
@@ -175,9 +225,8 @@ class SavingsGoal {
             (DateTime.tryParse(decoded['createdAt']?.toString() ?? '') ??
                     DateTime.now())
                 .toLocal(),
-        completedAt: DateTime.tryParse(
-          decoded['completedAt']?.toString() ?? '',
-        )?.toLocal(),
+        completedAt: DateTime.tryParse(decoded['completedAt']?.toString() ?? '')
+            ?.toLocal(),
         completedAmount: (decoded['completedAmount'] as num?)?.toDouble(),
         duration: _parseDuration(decoded['duration']?.toString()),
         allocatePercent: (decoded['allocatePercent'] as num?)?.toDouble(),
@@ -196,8 +245,14 @@ class SavingsGoal {
     }
   }
 
-  static String newId() => 'g${DateTime.now().microsecondsSinceEpoch}';
+  static int _seq = 0;
 
+  /// A fresh local id; the counter keeps two ids made in the same
+  /// microsecond apart.
+  static String newId() =>
+      'g${DateTime.now().microsecondsSinceEpoch}_${_seq++}';
+
+  /// A stored duration name; a month when unknown.
   static GoalDurationPreset _parseDuration(String? raw) {
     return switch (raw) {
       'week' => GoalDurationPreset.week,
@@ -208,6 +263,7 @@ class SavingsGoal {
     };
   }
 
+  /// A stored cadence; periodic goals default to monthly.
   static RecurringFrequency _parseFrequency(
     String? raw, {
     bool periodic = false,

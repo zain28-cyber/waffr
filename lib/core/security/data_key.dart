@@ -20,8 +20,8 @@ final AesGcm _aes = AesGcm.with256bits();
 class DataCipher {
   /// A cipher for the 32-byte [keyBytes].
   DataCipher(List<int> keyBytes)
-      : keyBytes = Uint8List.fromList(keyBytes),
-        _key = SecretKey(keyBytes);
+    : keyBytes = Uint8List.fromList(keyBytes),
+      _key = SecretKey(keyBytes);
 
   /// The raw key, so a background isolate can build its own cipher.
   final Uint8List keyBytes;
@@ -99,10 +99,10 @@ class WrappedDataKey {
 
   /// The JSON shape the server stores.
   Map<String, dynamic> toJson() => {
-        'salt': salt,
-        'iterations': iterations,
-        'wrapped_key': wrappedKey,
-      };
+    'salt': salt,
+    'iterations': iterations,
+    'wrapped_key': wrappedKey,
+  };
 }
 
 /// A fresh data key and the wrapped copy to upload for it.
@@ -175,16 +175,12 @@ class DataKeyStore {
     int iterations = defaultIterations,
   }) async {
     final salt = _randomBytes(16);
-    final box = await compute(
-      _wrapKey,
-      (
-        key: Uint8List.fromList(key),
-        password: password,
-        salt: salt,
-        iterations: iterations,
-      ),
-      debugLabel: 'wrap data key',
-    );
+    final box = await compute(_wrapKey, (
+      key: Uint8List.fromList(key),
+      password: password,
+      salt: salt,
+      iterations: iterations,
+    ), debugLabel: 'wrap data key');
     return WrappedDataKey(
       salt: base64Encode(salt),
       iterations: iterations,
@@ -198,16 +194,12 @@ class DataKeyStore {
     WrappedDataKey wrapped,
   ) async {
     try {
-      return await compute(
-        _unwrapKey,
-        (
-          box: base64Decode(wrapped.wrappedKey),
-          password: password,
-          salt: base64Decode(wrapped.salt),
-          iterations: wrapped.iterations,
-        ),
-        debugLabel: 'unwrap data key',
-      );
+      return await compute(_unwrapKey, (
+        box: base64Decode(wrapped.wrappedKey),
+        password: password,
+        salt: base64Decode(wrapped.salt),
+        iterations: wrapped.iterations,
+      ), debugLabel: 'unwrap data key');
     } catch (_) {
       return null;
     }

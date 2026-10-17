@@ -1,5 +1,6 @@
-// Obligations: the list of recurring expenses, the details of one, and the
-// sheet where charges waiting for approval are deducted or postponed.
+// Obligations (library root): the list of recurring expenses, the details
+// of one, and the sheet where charges waiting for approval are deducted or
+// postponed. Details, due charges and shared labels are part files.
 
 import 'package:flutter/material.dart';
 import 'package:waffr/widgets/containers/app_empty_state.dart';
@@ -14,16 +15,14 @@ import 'package:waffr/data/stores/currency_store.dart';
 import 'package:waffr/data/stores/recurring_expense_store.dart';
 import 'package:waffr/widgets/containers/glass_sheet.dart';
 import 'package:waffr/widgets/dialogs/edit_amount_dialog.dart';
+import 'package:waffr/core/theme/app_palette.dart';
+import 'package:waffr/core/utils/calendar_days.dart';
 
-const String kDeductAutomaticLabel = 'تلقائي';
-const String kDeductConfirmLabel = 'بعد تأكيدي';
+part 'due_obligations_sheet.dart';
+part 'obligation_details_sheet.dart';
+part 'obligation_labels.dart';
 
-const String kDeductModeInfoTitle = 'طريقة الخصم';
-const String kDeductModeInfoMessage =
-    'تلقائي: يُخصم المبلغ من رصيدك في موعده دون أن نسألك. يناسب من لديه راتب ثابت.\n\n'
-    'بعد تأكيدي: عند حلول الموعد يصلك تنبيه، وتختار بنفسك خصم المبلغ أو تأجيله. '
-    'يناسب من يكون دخله غير منتظم، مثل العمل الحر.';
-
+/// Opens the obligations list for the active currency.
 Future<void> showObligationsSheet(BuildContext context) {
   return showGlassSheet<void>(
     context: context,
@@ -31,6 +30,7 @@ Future<void> showObligationsSheet(BuildContext context) {
   );
 }
 
+/// Opens the sheet of charges waiting for the user's confirmation.
 Future<void> showDueObligationsSheet(BuildContext context) {
   return showGlassSheet<void>(
     context: context,
@@ -38,132 +38,19 @@ Future<void> showDueObligationsSheet(BuildContext context) {
   );
 }
 
-// Name shown for an obligation: its note, else its category.
-String obligationTitle(RecurringExpense item) {
-  final note = item.note?.trim() ?? '';
-  return note.isEmpty ? categoryFor(item.category).label : note;
-}
-
-// "12 تشرين الأول", or today / tomorrow.
-String obligationDate(DateTime date, {DateTime? now}) {
-  final moment = now ?? deviceNow();
-  final day = DateTime(date.year, date.month, date.day);
-  final today = DateTime(moment.year, moment.month, moment.day);
-  final diff = day.difference(today).inDays;
-  if (diff == 0) return 'اليوم';
-  if (diff == 1) return 'غداً';
-  final month = CalendarPeriod.monthName(date.month);
-  return date.year == moment.year
-      ? '${date.day} $month'
-      : '${date.day} $month ${date.year}';
-}
-
-String paymentsLabel(int count) {
-  if (count == 1) return 'دفعة واحدة';
-  if (count == 2) return 'دفعتان';
-  if (count <= 10) return '$count دفعات';
-  return '$count دفعة';
-}
-
-String obligationsCountLabel(int count) {
-  if (count == 1) return 'التزام واحد';
-  if (count == 2) return 'التزامان';
-  if (count <= 10) return '$count التزامات';
-  return '$count التزاماً';
-}
-
-// One line describing where an obligation stands right now. [short] is for
-// narrow places such as the home card.
-String obligationStatus(
-  RecurringExpense item, {
-  DateTime? now,
-  bool short = false,
-}) {
-  final moment = now ?? deviceNow();
-  if (!item.enabled) return 'متوقف';
-
-  final due = item.dueDates(moment).length;
-  if (due > 0) {
-    if (!item.requiresConfirmation) {
-      return short ? 'الرصيد غير كافٍ' : 'لم يُخصم لأن الرصيد غير كافٍ';
-    }
-    if (item.remindOnIncome) {
-      return short ? 'مؤجل' : 'مؤجل حتى إضافة دخل جديد';
-    }
-    final remindAt = item.remindAt;
-    if (remindAt != null && remindAt.isAfter(moment)) {
-      return short
-          ? 'مؤجل'
-          : 'مؤجل، نذكّرك ${obligationDate(remindAt, now: moment)}';
-    }
-    return due == 1 || short
-        ? 'بانتظار تأكيدك'
-        : 'بانتظار تأكيدك (${paymentsLabel(due)})';
-  }
-
-  final date = obligationDate(item.nextDueAt, now: moment);
-  return short ? date : 'الدفعة القادمة $date';
-}
-
-// True when the obligation has a charge that has not been deducted yet.
-bool obligationNeedsAttention(RecurringExpense item, {DateTime? now}) {
-  return item.enabled &&
-      item.dueDates(now ?? deviceNow(), max: 1).isNotEmpty;
-}
-
-class _ObligationColors {
-  final Color accent;
-  final Color textPrimary;
-  final Color textSecondary;
-  final Color warning;
-
-  const _ObligationColors({
-    required this.accent,
-    required this.textPrimary,
-    required this.textSecondary,
-    required this.warning,
-  });
-
-  factory _ObligationColors.of(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return _ObligationColors(
-      accent: isDark ? AppColors.darkAccent : AppColors.lightAccent,
-      textPrimary:
-          isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-      textSecondary:
-          isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-      warning: AppColors.warningOf(context),
-    );
-  }
-}
-
-TextStyle _text(
-  Color color, {
-  double size = 13,
-  FontWeight weight = FontWeight.w500,
-  double? height,
-}) {
-  return TextStyle(
-    fontFamily: 'Outfit',
-    fontFamilyFallback: const ['Tajawal'],
-    fontSize: size,
-    fontWeight: weight,
-    height: height,
-    color: color,
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Obligations list
-// ---------------------------------------------------------------------------
-
+/// List of the active currency's obligations with a monthly total, the next
+/// charge, and a banner for charges awaiting confirmation. Tapping one opens
+/// its details sheet.
 class ObligationsSheet extends StatefulWidget {
+  /// Creates a [ObligationsSheet].
   const ObligationsSheet({super.key});
 
   @override
   State<ObligationsSheet> createState() => _ObligationsSheetState();
 }
 
+/// State of [ObligationsSheet]. Rebuilds from [RecurringExpenseStore] and
+/// [CurrencyStore].
 class _ObligationsSheetState extends State<ObligationsSheet> {
   final RecurringExpenseStore _store = RecurringExpenseStore.instance;
 
@@ -187,11 +74,13 @@ class _ObligationsSheetState extends State<ObligationsSheet> {
         final next = _store.nextUpcoming(code, now: now);
         final symbol = currencyLabelFor(code);
 
+        // Header, then summary, awaiting banner and one tile per obligation.
         return GlassSheetBody(
           children: [
             const GlassSheetHeader(
               title: 'الالتزامات',
-              subtitle: 'المصروفات التي تتكرر بانتظام، مثل الإيجار والاشتراكات.',
+              subtitle:
+                  'المصروفات التي تتكرر بانتظام، مثل الإيجار والاشتراكات.',
             ),
             const SizedBox(height: 16),
             if (items.isEmpty)
@@ -231,7 +120,7 @@ class _ObligationsSheetState extends State<ObligationsSheet> {
     );
   }
 
-  // Waiting charges first, then by next charge date; stopped ones last.
+  /// Waiting charges first, then by next charge date; stopped ones last.
   List<RecurringExpense> _sorted(List<RecurringExpense> items, DateTime now) {
     int rank(RecurringExpense item) {
       if (!item.enabled) return 2;
@@ -247,6 +136,7 @@ class _ObligationsSheetState extends State<ObligationsSheet> {
     return list;
   }
 
+  /// Opens the details sheet for [item] on top of this one.
   void _openDetails(RecurringExpense item) {
     showGlassSheet<void>(
       context: context,
@@ -255,6 +145,7 @@ class _ObligationsSheetState extends State<ObligationsSheet> {
   }
 }
 
+/// Approximate monthly total and the next upcoming charge.
 class _SummaryBox extends StatelessWidget {
   final _ObligationColors colors;
   final String monthlyTotal;
@@ -279,7 +170,11 @@ class _SummaryBox extends StatelessWidget {
         children: [
           Text(
             'المجموع الشهري التقريبي',
-            style: _text(colors.textSecondary, size: 12.5, weight: FontWeight.w700),
+            style: _text(
+              colors.textSecondary,
+              size: 12.5,
+              weight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
@@ -301,6 +196,7 @@ class _SummaryBox extends StatelessWidget {
   }
 }
 
+/// Warning-tinted banner that opens the due-obligations sheet.
 class _AwaitingBanner extends StatelessWidget {
   final _ObligationColors colors;
   final int count;
@@ -324,14 +220,22 @@ class _AwaitingBanner extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
           child: Row(
             children: [
-              Icon(Icons.pending_actions_rounded, size: 22, color: colors.warning),
+              Icon(
+                Icons.pending_actions_rounded,
+                size: 22,
+                color: colors.warning,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   count == 1
                       ? 'لديك التزام بانتظار تأكيدك'
                       : 'لديك ${obligationsCountLabel(count)} بانتظار تأكيدك',
-                  style: _text(colors.textPrimary, size: 13.5, weight: FontWeight.w700),
+                  style: _text(
+                    colors.textPrimary,
+                    size: 13.5,
+                    weight: FontWeight.w700,
+                  ),
                 ),
               ),
               Text(
@@ -347,6 +251,7 @@ class _AwaitingBanner extends StatelessWidget {
   }
 }
 
+/// Empty state explaining how to add an obligation.
 class _EmptyObligations extends StatelessWidget {
   const _EmptyObligations();
 
@@ -360,6 +265,8 @@ class _EmptyObligations extends StatelessWidget {
   }
 }
 
+/// One obligation row: icon, title, amount / interval / deduct mode, and
+/// status. Paused obligations are dimmed.
 class _ObligationTile extends StatelessWidget {
   final RecurringExpense item;
   final _ObligationColors colors;
@@ -409,7 +316,11 @@ class _ObligationTile extends StatelessWidget {
                         obligationTitle(item),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: _text(colors.textPrimary, size: 14, weight: FontWeight.w700),
+                        style: _text(
+                          colors.textPrimary,
+                          size: 14,
+                          weight: FontWeight.w700,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -438,443 +349,6 @@ class _ObligationTile extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// One obligation
-// ---------------------------------------------------------------------------
-
-class _ObligationDetailsSheet extends StatefulWidget {
-  final String id;
-
-  const _ObligationDetailsSheet({required this.id});
-
-  @override
-  State<_ObligationDetailsSheet> createState() =>
-      _ObligationDetailsSheetState();
-}
-
-class _ObligationDetailsSheetState extends State<_ObligationDetailsSheet> {
-  final RecurringExpenseStore _store = RecurringExpenseStore.instance;
-
-  static const String _activeLabel = 'مفعّل';
-  static const String _stoppedLabel = 'متوقف';
-
-  Future<void> _editAmount(RecurringExpense item) async {
-    final colors = _ObligationColors.of(context);
-    final result = await showAppDialog<Object>(
-      context: context,
-      builder: (context) => EditAmountDialog(
-        title: obligationTitle(item),
-        initialAmount: item.amount,
-        accent: colors.accent,
-        currencyCode: item.currencyCode,
-      ),
-    );
-
-    if (!mounted || result is! EditAmountResult) return;
-
-    final saved = await _store.updateAmount(
-      item.id,
-      result.amount,
-      currencyCode: result.currencyCode,
-    );
-    if (!mounted) return;
-
-    if (!saved) {
-      showAppSnackBar(context, 'تعذّر حفظ المبلغ. حاول مرة أخرى.');
-      return;
-    }
-    showAppSnackBar(context, 'تم حفظ المبلغ الجديد', success: true);
-  }
-
-  Future<void> _delete(RecurringExpense item) async {
-    final confirm = await showAppConfirmDialog(
-      context,
-      title: 'حذف الالتزام',
-      message:
-          'سيُحذف «${obligationTitle(item)}» ولن يُخصم مرة أخرى. المصروفات التي خُصمت سابقاً تبقى في السجل.',
-      confirmLabel: 'حذف',
-      destructive: true,
-    );
-    if (confirm != true) return;
-
-    await _store.deleteExpense(item.id);
-    if (!mounted) return;
-    Navigator.of(context).maybePop();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = _ObligationColors.of(context);
-
-    return AnimatedBuilder(
-      animation: _store,
-      builder: (context, _) {
-        final item = _store.byId(widget.id);
-        if (item == null) {
-          return const GlassSheetBody(
-            children: [
-              GlassSheetHeader(
-                title: 'الالتزام',
-                subtitle: 'لم يعد هذا الالتزام موجوداً.',
-              ),
-              SizedBox(height: 12),
-            ],
-          );
-        }
-
-        final now = deviceNow();
-        final attention = obligationNeedsAttention(item, now: now);
-        final awaiting = attention && item.requiresConfirmation;
-
-        return GlassSheetBody(
-          children: [
-            GlassSheetHeader(
-              title: obligationTitle(item),
-              subtitle:
-                  '${categoryFor(item.category).label} · ${item.intervalDescription}',
-            ),
-            const SizedBox(height: 18),
-            const SheetFieldLabel(text: 'المبلغ'),
-            Material(
-              color: sheetFieldColor(context),
-              borderRadius: BorderRadius.circular(18),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(18),
-                onTap: () => _editAmount(item),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '${formatMoney(item.amount)} ${currencyLabelFor(item.currencyCode)}',
-                          style: _text(colors.textPrimary, size: 17, weight: FontWeight.bold),
-                        ),
-                      ),
-                      Icon(Icons.edit_rounded, size: 19, color: colors.accent),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const SheetFieldLabel(
-              text: 'طريقة الخصم',
-              action: SheetInfoButton(
-                title: kDeductModeInfoTitle,
-                message: kDeductModeInfoMessage,
-              ),
-            ),
-            SheetChoiceChips(
-              options: const [kDeductAutomaticLabel, kDeductConfirmLabel],
-              selected: item.requiresConfirmation
-                  ? kDeductConfirmLabel
-                  : kDeductAutomaticLabel,
-              onSelected: (value) => _store.setRequiresConfirmation(
-                item.id,
-                value == kDeductConfirmLabel,
-              ),
-            ),
-            const SizedBox(height: 16),
-            const SheetFieldLabel(text: 'الحالة'),
-            SheetChoiceChips(
-              options: const [_activeLabel, _stoppedLabel],
-              selected: item.enabled ? _activeLabel : _stoppedLabel,
-              onSelected: (value) =>
-                  _store.setEnabled(item.id, value == _activeLabel),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              obligationStatus(item, now: now),
-              textAlign: TextAlign.center,
-              style: _text(
-                attention ? colors.warning : colors.textSecondary,
-                size: 12.5,
-                weight: attention ? FontWeight.w700 : FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 20),
-            if (awaiting) ...[
-              SheetSaveButton(
-                label: 'مراجعة وتأكيد',
-                onTap: () {
-                  Navigator.of(context).maybePop();
-                  showDueObligationsSheet(context);
-                },
-              ),
-              const SizedBox(height: 8),
-            ],
-            SheetDestructiveButton(
-              label: 'حذف الالتزام',
-              onTap: () => _delete(item),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-
-// ---------------------------------------------------------------------------
-// Charges waiting for approval
-// ---------------------------------------------------------------------------
-
-enum _DueAction { deductOne, deductAll, postpone }
-
-enum _PostponeOption { day, threeDays, week, nextIncome }
-
-extension on _PostponeOption {
-  String get label => switch (this) {
-        _PostponeOption.day => 'يوم',
-        _PostponeOption.threeDays => '3 أيام',
-        _PostponeOption.week => 'أسبوع',
-        _PostponeOption.nextIncome => 'دخل جديد',
-      };
-}
-
-class DueObligationsSheet extends StatefulWidget {
-  const DueObligationsSheet({super.key});
-
-  @override
-  State<DueObligationsSheet> createState() => _DueObligationsSheetState();
-}
-
-class _DueObligationsSheetState extends State<DueObligationsSheet> {
-  final RecurringExpenseStore _store = RecurringExpenseStore.instance;
-
-  final Map<String, _DueAction> _actions = {};
-  final Map<String, _PostponeOption> _postpone = {};
-  bool _saving = false;
-
-  // Snapshot so items do not vanish while the user is choosing.
-  List<RecurringExpense>? _items;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    await _store.ensureLoaded();
-    if (!mounted) return;
-    final now = deviceNow();
-    final items = <RecurringExpense>[];
-    for (final code in {for (final item in _store.items) item.currencyCode}) {
-      items.addAll(_store.awaitingConfirmation(code, now: now));
-    }
-    items.sort((a, b) => a.nextDueAt.compareTo(b.nextDueAt));
-    setState(() => _items = items);
-  }
-
-  Future<void> _confirm() async {
-    final items = _items ?? const [];
-    if (_saving || items.isEmpty) return;
-    setState(() => _saving = true);
-
-    var deducted = 0;
-    var shortOfBalance = false;
-    var postponed = 0;
-
-    for (final item in items) {
-      final action = _actions[item.id] ?? _DueAction.deductOne;
-      switch (action) {
-        case _DueAction.deductOne:
-        case _DueAction.deductAll:
-          final all = action == _DueAction.deductAll;
-          final wanted = all ? item.dueDates(deviceNow()).length : 1;
-          final posted = await _store.confirmDue(item.id, all: all);
-          deducted += posted;
-          if (posted < wanted) shortOfBalance = true;
-        case _DueAction.postpone:
-          final option = _postpone[item.id] ?? _PostponeOption.day;
-          await _store.postpone(
-            item.id,
-            untilIncome: option == _PostponeOption.nextIncome,
-            after: switch (option) {
-              _PostponeOption.day => const Duration(days: 1),
-              _PostponeOption.threeDays => const Duration(days: 3),
-              _PostponeOption.week => const Duration(days: 7),
-              _PostponeOption.nextIncome => null,
-            },
-          );
-          postponed++;
-      }
-    }
-
-    if (!mounted) return;
-    Navigator.of(context).maybePop();
-
-    if (shortOfBalance) {
-      showAppSnackBar(
-        context,
-        'رصيدك لا يكفي لخصم بعض الدفعات، فبقيت بانتظار تأكيدك.',
-        kind: AppFeedbackKind.warning,
-      );
-    } else if (deducted > 0 && postponed > 0) {
-      showAppSnackBar(context, 'تم الخصم والتأجيل كما اخترت', success: true);
-    } else if (deducted > 0) {
-      showAppSnackBar(context, 'تم خصم المبلغ من رصيدك', success: true);
-    } else {
-      showAppSnackBar(
-        context,
-        'تم التأجيل، وسنذكّرك في الموعد الذي اخترته',
-        kind: AppFeedbackKind.info,
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = _ObligationColors.of(context);
-    final items = _items;
-
-    return GlassSheetBody(
-      children: [
-        const GlassSheetHeader(
-          title: 'التزامات بانتظار تأكيدك',
-          subtitle: 'اختر لكل التزام: خصم المبلغ الآن أو تأجيله إلى وقت لاحق.',
-        ),
-        const SizedBox(height: 16),
-        if (items == null)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(child: CircularProgressIndicator()),
-          )
-        else if (items.isEmpty)
-          const AppEmptyState(
-            icon: Icons.task_alt_rounded,
-            title: 'لا توجد التزامات بانتظار تأكيدك',
-          )
-        else ...[
-          for (final item in items) ...[
-            _DueItemCard(
-              item: item,
-              colors: colors,
-              action: _actions[item.id] ?? _DueAction.deductOne,
-              postpone: _postpone[item.id] ?? _PostponeOption.day,
-              onAction: (value) => setState(() => _actions[item.id] = value),
-              onPostpone: (value) => setState(() => _postpone[item.id] = value),
-            ),
-            const SizedBox(height: 10),
-          ],
-          const SizedBox(height: 8),
-          SheetSaveButton(
-            label: 'تأكيد',
-            enabled: !_saving,
-            onTap: _confirm,
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _DueItemCard extends StatelessWidget {
-  final RecurringExpense item;
-  final _ObligationColors colors;
-  final _DueAction action;
-  final _PostponeOption postpone;
-  final ValueChanged<_DueAction> onAction;
-  final ValueChanged<_PostponeOption> onPostpone;
-
-  static const String _deductLabel = 'خصم';
-  static const String _deductOneLabel = 'خصم دفعة';
-  static const String _deductAllLabel = 'خصم الكل';
-  static const String _postponeLabel = 'تأجيل';
-
-  const _DueItemCard({
-    required this.item,
-    required this.colors,
-    required this.action,
-    required this.postpone,
-    required this.onAction,
-    required this.onPostpone,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final count = item.dueDates(deviceNow()).length;
-    final symbol = currencyLabelFor(item.currencyCode);
-    final several = count > 1;
-
-    final options = several
-        ? const [_deductOneLabel, _deductAllLabel, _postponeLabel]
-        : const [_deductLabel, _postponeLabel];
-    final selected = switch (action) {
-      _DueAction.postpone => _postponeLabel,
-      _DueAction.deductAll => several ? _deductAllLabel : _deductLabel,
-      _DueAction.deductOne => several ? _deductOneLabel : _deductLabel,
-    };
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-      decoration: BoxDecoration(
-        border: Border.all(color: colors.textSecondary.withValues(alpha: 0.18)),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  obligationTitle(item),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: _text(colors.textPrimary, size: 15, weight: FontWeight.bold),
-                ),
-              ),
-              Text(
-                '${formatMoney(item.amount)} $symbol',
-                style: _text(colors.accent, size: 15, weight: FontWeight.bold),
-              ),
-            ],
-          ),
-          const SizedBox(height: 3),
-          Text(
-            several
-                ? 'مستحق عن ${paymentsLabel(count)}، المجموع ${formatMoney(item.amount * count)} $symbol'
-                : 'موعده ${obligationDate(item.nextDueAt)}',
-            style: _text(colors.textSecondary, size: 12),
-          ),
-          const SizedBox(height: 10),
-          SheetChoiceChips(
-            options: options,
-            selected: selected,
-            onSelected: (value) => onAction(switch (value) {
-              _postponeLabel => _DueAction.postpone,
-              _deductAllLabel => _DueAction.deductAll,
-              _ => _DueAction.deductOne,
-            }),
-          ),
-          SheetExpand(
-            visible: action == _DueAction.postpone,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 10),
-                const SheetFieldLabel(text: 'ذكّرني بعد'),
-                SheetChoiceChips(
-                  options: [for (final option in _PostponeOption.values) option.label],
-                  selected: postpone.label,
-                  onSelected: (value) => onPostpone(
-                    _PostponeOption.values.firstWhere(
-                      (option) => option.label == value,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

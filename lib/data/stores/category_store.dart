@@ -4,6 +4,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:waffr/data/models/custom_category_entry.dart';
 import 'package:waffr/data/models/expense_categories.dart';
 import 'package:waffr/core/sync/sync_clock.dart';
 import 'package:waffr/core/sync/sync_dirty.dart';
@@ -11,133 +12,32 @@ import 'package:waffr/core/sync/sync_merge.dart';
 import 'package:waffr/core/sync/sync_tombstones.dart';
 import 'package:waffr/core/prefs/app_prefs.dart';
 
-// One user-defined category with a chosen icon index.
-class CustomCategoryEntry {
-  final String id;
-  final String label;
-  final int iconIndex;
-  final int? colorIndex;
-  final DateTime? updatedAt;
+export 'package:waffr/data/models/custom_category_entry.dart';
 
-  const CustomCategoryEntry({
-    required this.id,
-    required this.label,
-    required this.iconIndex,
-    this.colorIndex,
-    this.updatedAt,
-  });
-
-  DateTime get syncUpdatedAt => (updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0)).toUtc();
-
-  ExpenseCategory toCategory() => customCategoryNamed(
-        label,
-        iconIndex: iconIndex,
-        colorIndex: colorIndex,
-      );
-
-  CustomCategoryEntry copyWith({
-    String? label,
-    int? iconIndex,
-    int? colorIndex,
-    DateTime? updatedAt,
-  }) {
-    return CustomCategoryEntry(
-      id: id,
-      label: label ?? this.label,
-      iconIndex: iconIndex ?? this.iconIndex,
-      colorIndex: colorIndex ?? this.colorIndex,
-      updatedAt: updatedAt ?? this.updatedAt,
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'label': label,
-        'icon': iconIndex,
-        if (colorIndex != null) 'color': colorIndex,
-        'updatedAt': toSyncIso(syncUpdatedAt),
-      };
-
-  Map<String, dynamic> toSyncJson() => {
-        'client_id': id,
-        'label': label,
-        'icon_index': iconIndex,
-        'updated_at': toSyncIso(syncUpdatedAt),
-      };
-
-  factory CustomCategoryEntry.fromJson(Map<String, dynamic> json) {
-    final label = (json['label'] as String? ?? '').trim();
-    final icon = json['icon'] ?? json['icon_index'] ?? json['iconIndex'];
-    final iconIndex = icon is int
-        ? icon
-        : int.tryParse(icon?.toString() ?? '') ?? 0;
-    final rawId = (json['id'] ?? json['client_id'])?.toString().trim() ?? '';
-    return CustomCategoryEntry(
-      id: rawId.isEmpty ? _legacyCategoryId(label) : rawId,
-      label: label,
-      iconIndex: clampCustomIconIndex(iconIndex),
-      colorIndex: _readColorIndex(json['color'] ?? json['color_index']),
-      updatedAt: parseSyncDate(json['updatedAt'] ?? json['updated_at']) ??
-          syncNow(),
-    );
-  }
-
-  // Server payload → entry; null when label or client id is missing.
-  static CustomCategoryEntry? fromSync(Map<String, dynamic> raw) {
-    final label = raw['label']?.toString().trim() ?? '';
-    final id = (raw['client_id'] ?? raw['id'])?.toString().trim() ?? '';
-    if (label.isEmpty || id.isEmpty) return null;
-    final icon = raw['icon_index'] ?? raw['iconIndex'] ?? raw['icon'];
-    final iconIndex = icon is int
-        ? icon
-        : int.tryParse(icon?.toString() ?? '') ?? 0;
-    return CustomCategoryEntry(
-      id: id,
-      label: label,
-      iconIndex: clampCustomIconIndex(iconIndex),
-      colorIndex: _readColorIndex(raw['color'] ?? raw['color_index']),
-      updatedAt: parseSyncDate(raw['updated_at'] ?? raw['updatedAt']),
-    );
-  }
-}
-
-int? _readColorIndex(Object? raw) {
-  if (raw == null) return null;
-  final index = raw is int ? raw : int.tryParse(raw.toString());
-  if (index == null || customCategoryColors.isEmpty) return null;
-  return clampCustomColorIndex(index);
-}
-
-// Stable id for pre-v2 categories that only stored a label string.
-String _legacyCategoryId(String label) {
-  var hash = 0;
-  for (final unit in label.codeUnits) {
-    hash = (hash * 31 + unit) & 0x7fffffff;
-  }
-  return 'cat_$hash';
-}
-
-int _categorySeq = 0;
-
-String _newCategoryId() =>
-    'cat_${DateTime.now().microsecondsSinceEpoch}_${_categorySeq++}';
-
-// Owns custom categories in prefs and registers them with customCategoryLookup.
-//
-// Built-in categories can be removed too. They are only hidden from the
-// pickers (the label list travels with settings sync), so old expenses keep
-// their label, icon and color. Removed custom categories are kept in a local
-// archive for the same reason.
+/// Owns custom categories in prefs and registers them with customCategoryLookup.
+///
+/// Built-in categories can be removed too. They are only hidden from the
+/// pickers (the label list travels with settings sync), so old expenses keep
+/// their label, icon and color. Removed custom categories are kept in a local
+/// archive for the same reason.
 class CategoryStore extends ChangeNotifier {
   CategoryStore._() {
     customCategoryLookup = findCustom;
   }
 
+  /// The app-wide category store.
   static final CategoryStore instance = CategoryStore._();
 
+  /// Prefs key of the oldest format: a list of labels.
   static const String itemsKey = 'custom_expense_categories';
+
+  /// Prefs key of the current format: JSON entries.
   static const String itemsJsonKey = 'custom_expense_categories_v2';
+
+  /// Prefs key of the removed built-in labels.
   static const String hiddenBuiltInsKey = 'hidden_builtin_categories';
+
+  /// Prefs key of removed custom categories, kept for old expenses.
   static const String archivedKey = 'archived_expense_categories';
 
   final List<CustomCategoryEntry> _entries = [];
@@ -146,25 +46,29 @@ class CategoryStore extends ChangeNotifier {
   Future<void>? _loader;
   bool _loaded = false;
 
+  /// True once loaded from prefs.
   bool get isLoaded => _loaded;
 
-  List<ExpenseCategory> get customCategories =>
-      [for (final entry in _entries) entry.toCategory()];
+  /// The user's categories as drawable categories.
+  List<ExpenseCategory> get customCategories => [
+    for (final entry in _entries) entry.toCategory(),
+  ];
 
+  /// The user's categories as stored (for sync).
   List<CustomCategoryEntry> get entries => List.unmodifiable(_entries);
 
   /// Built-in labels the user removed, in catalog order (for settings sync).
   List<String> get hiddenBuiltIns => [
-        for (final item in expenseCategories)
-          if (_hiddenBuiltIns.contains(item.label)) item.label,
-      ];
+    for (final item in expenseCategories)
+      if (_hiddenBuiltIns.contains(item.label)) item.label,
+  ];
 
-  // Visible built-ins plus customs for pickers; excludes the "custom" tile.
+  /// Visible built-ins plus customs for pickers; excludes the "custom" tile.
   List<ExpenseCategory> get selectableCategories => [
-        for (final item in expenseCategories)
-          if (!_hiddenBuiltIns.contains(item.label)) item,
-        ...customCategories,
-      ];
+    for (final item in expenseCategories)
+      if (!_hiddenBuiltIns.contains(item.label)) item,
+    ...customCategories,
+  ];
 
   /// First category a new expense starts on.
   String get defaultLabel {
@@ -172,9 +76,10 @@ class CategoryStore extends ChangeNotifier {
     return options.isEmpty ? fallbackCategory.label : options.first.label;
   }
 
+  /// Loads from prefs once; later calls return the same future.
   Future<void> ensureLoaded() => _loader ??= _load();
 
-  // Live custom categories first, then removed ones so history keeps its icon.
+  /// Live custom categories first, then removed ones so history keeps its icon.
   ExpenseCategory? findCustom(String label) {
     for (final entry in _entries) {
       if (entry.label == label) return entry.toCategory();
@@ -182,15 +87,18 @@ class CategoryStore extends ChangeNotifier {
     return _archived[label]?.toCategory();
   }
 
-  bool isCustom(String label) =>
-      _entries.any((entry) => entry.label == label);
+  /// True for a live user-defined category.
+  bool isCustom(String label) => _entries.any((entry) => entry.label == label);
 
+  /// True for one of the built-in categories.
   bool isBuiltIn(String label) =>
       expenseCategories.any((item) => item.label == label);
 
+  /// True when [label] shows in the pickers.
   bool isSelectable(String label) =>
       selectableCategories.any((item) => item.label == label);
 
+  /// The saved icon slot of a custom category, else 0.
   int iconIndexOf(String label) {
     for (final entry in _entries) {
       if (entry.label == label) return entry.iconIndex;
@@ -198,12 +106,11 @@ class CategoryStore extends ChangeNotifier {
     return 0;
   }
 
-  // Arabic validation error, or null if the name can be used.
+  /// Arabic validation error, or null if the name can be used.
   String? validateName(String rawName, {String? ignoring}) {
     final name = rawName.trim();
     if (name.isEmpty) return 'أدخل اسماً للتصنيف';
-    if (name == customCategoryActionLabel ||
-        name == fallbackCategory.label) {
+    if (name == customCategoryActionLabel || name == fallbackCategory.label) {
       return 'هذا الاسم محجوز';
     }
     if (selectableCategories.any(
@@ -218,6 +125,8 @@ class CategoryStore extends ChangeNotifier {
     return null;
   }
 
+  /// Adds a category (or brings back a removed built-in of that name).
+  /// Returns the saved label, or null when the name is not valid.
   Future<String?> addCustom(String rawName, {int iconIndex = 0}) async {
     await ensureLoaded();
 
@@ -234,7 +143,7 @@ class CategoryStore extends ChangeNotifier {
 
     _entries.add(
       CustomCategoryEntry(
-        id: _newCategoryId(),
+        id: CustomCategoryEntry.newId(),
         label: name,
         iconIndex: clampCustomIconIndex(iconIndex),
         colorIndex: nextCustomColorIndex(
@@ -248,6 +157,8 @@ class CategoryStore extends ChangeNotifier {
     return name;
   }
 
+  /// Renames a custom category and may change its icon; the old name is
+  /// archived so earlier expenses keep their look. Null when not valid.
   Future<String?> renameCustom(
     String oldLabel,
     String rawName, {
@@ -273,7 +184,7 @@ class CategoryStore extends ChangeNotifier {
     return name;
   }
 
-  // Removes the category and records a sync tombstone.
+  /// Removes the category and records a sync tombstone.
   Future<bool> removeCustom(String label) async {
     await ensureLoaded();
 
@@ -330,6 +241,8 @@ class CategoryStore extends ChangeNotifier {
     _archived[entry.label] = entry;
   }
 
+  /// Merges the server's categories, keeping locally assigned colors and
+  /// archiving categories the merge removed.
   Future<void> applyRemoteSync({
     required List<Map<String, dynamic>> upserts,
     required List<SyncTombstone> deletes,
@@ -374,6 +287,7 @@ class CategoryStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Drops memory so the next [ensureLoaded] re-reads prefs (tests, wipes).
   void resetCache() {
     _entries.clear();
     _hiddenBuiltIns.clear();
@@ -392,9 +306,12 @@ class CategoryStore extends ChangeNotifier {
     for (final entry in _parseJson(prefs.getString(archivedKey) ?? '')) {
       _archived[entry.label] = entry;
     }
+    // Read first: the migration paths of _readEntries fill _entries
+    // themselves, so clearing before the await would keep both copies.
+    final loaded = await _readEntries(prefs);
     _entries
       ..clear()
-      ..addAll(await _readEntries(prefs));
+      ..addAll(loaded);
     if (_assignMissingColors()) {
       await _persist();
     }
@@ -408,14 +325,18 @@ class CategoryStore extends ChangeNotifier {
     for (var i = 0; i < _entries.length; i++) {
       if (_entries[i].colorIndex != null) continue;
       final used = _entries.map((entry) => entry.colorIndex).whereType<int>();
-      _entries[i] = _entries[i].copyWith(colorIndex: nextCustomColorIndex(used));
+      _entries[i] = _entries[i].copyWith(
+        colorIndex: nextCustomColorIndex(used),
+      );
       changed = true;
     }
     return changed;
   }
 
   // Prefers v2 JSON; migrates the old string-list format when needed.
-  Future<List<CustomCategoryEntry>> _readEntries(SharedPreferences prefs) async {
+  Future<List<CustomCategoryEntry>> _readEntries(
+    SharedPreferences prefs,
+  ) async {
     final json = prefs.getString(itemsJsonKey);
     if (json != null && json.trim().isNotEmpty) {
       final parsed = _parseJson(json);
@@ -433,7 +354,7 @@ class CategoryStore extends ChangeNotifier {
       for (final raw in legacy)
         if (raw.trim().isNotEmpty)
           CustomCategoryEntry(
-            id: _legacyCategoryId(raw.trim()),
+            id: CustomCategoryEntry.legacyId(raw.trim()),
             label: raw.trim(),
             iconIndex: raw.hashCode.abs() % customCategoryIconChoices.length,
             updatedAt: syncNow(),

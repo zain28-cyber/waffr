@@ -1,3 +1,9 @@
+"""Request and response bodies for the REST routes in routers/.
+
+Money travels as strings with two decimals; the sync bodies are in
+sync_schemas.py.
+"""
+
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -8,16 +14,20 @@ from input_rules import INT_MAX, MONEY_MAX, CleanModel
 
 
 def parse_decimal(value: Any) -> Decimal | None:
+    """A Decimal from a number or string; None for None or ""."""
     if value is None or value == "":
         return None
     return Decimal(str(value))
 
 
 class ApiModel(BaseModel):
+    """Response model that reads straight from ORM rows."""
+
     model_config = ConfigDict(from_attributes=True)
 
 
 def money_str(value: Decimal | None) -> str | None:
+    """Format money with two decimals, e.g. "12.50"; None stays None."""
     if value is None:
         return None
     quantized = value.quantize(Decimal("0.01"))
@@ -25,6 +35,8 @@ def money_str(value: Decimal | None) -> str | None:
 
 
 class TransactionCreate(CleanModel):
+    """Body of POST /transactions."""
+
     client_id: str | None = Field(default=None, max_length=64)
     type: str = Field(pattern="^(income|expense)$")
     amount: Decimal = Field(gt=0, le=MONEY_MAX)
@@ -46,6 +58,8 @@ class TransactionCreate(CleanModel):
 
 
 class TransactionUpdate(CleanModel):
+    """Body of PATCH /transactions/{id}; only the fields sent change."""
+
     amount: Decimal | None = Field(default=None, gt=0, le=MONEY_MAX)
     category: str | None = Field(default=None, max_length=100)
     payment_method: str | None = Field(default=None, max_length=100)
@@ -61,6 +75,8 @@ class TransactionUpdate(CleanModel):
 
 
 class TransactionOut(ApiModel):
+    """A transaction as the REST routes return it."""
+
     id: int
     client_id: str
     type: str
@@ -82,6 +98,8 @@ class TransactionOut(ApiModel):
 
 
 class SavingsGoalCreate(CleanModel):
+    """Body of POST /savings-goals."""
+
     client_id: str | None = Field(default=None, max_length=64)
     name: str = Field(min_length=1, max_length=100)
     target_amount: Decimal = Field(gt=0, le=MONEY_MAX)
@@ -123,6 +141,8 @@ class SavingsGoalCreate(CleanModel):
 
 
 class SavingsGoalUpdate(CleanModel):
+    """Body of PATCH /savings-goals/{id}; only the fields sent change."""
+
     name: str | None = Field(default=None, min_length=1, max_length=100)
     target_amount: Decimal | None = Field(default=None, gt=0, le=MONEY_MAX)
     duration: str | None = Field(
@@ -166,6 +186,8 @@ class SavingsGoalUpdate(CleanModel):
 
 
 class SavingsGoalOut(ApiModel):
+    """A goal with its derived saved amount."""
+
     id: int
     client_id: str
     name: str
@@ -198,6 +220,8 @@ class SavingsGoalOut(ApiModel):
 
 
 class SavingsTransferCreate(CleanModel):
+    """Body of POST /savings-transfers. The goal is named by id or client id."""
+
     client_id: str | None = Field(default=None, max_length=64)
     goal_id: int | None = None
     goal_client_id: str | None = Field(default=None, max_length=64)
@@ -224,6 +248,8 @@ class SavingsTransferCreate(CleanModel):
 
 
 class SavingsTransferOut(ApiModel):
+    """A savings transfer as the REST routes return it."""
+
     id: int
     client_id: str
     goal_id: int | None
@@ -242,6 +268,8 @@ class SavingsTransferOut(ApiModel):
 
 
 class ShoppingListCreate(CleanModel):
+    """Body of POST /shopping-lists."""
+
     client_id: str | None = Field(default=None, max_length=64)
     name: str = Field(min_length=1, max_length=100)
 
@@ -255,6 +283,8 @@ class ShoppingListCreate(CleanModel):
 
 
 class ShoppingListUpdate(CleanModel):
+    """Body of PATCH /shopping-lists/{id}."""
+
     name: str | None = Field(default=None, min_length=1, max_length=100)
 
     @field_validator("name")
@@ -269,6 +299,8 @@ class ShoppingListUpdate(CleanModel):
 
 
 class ShoppingItemCreate(CleanModel):
+    """Body of POST /shopping-lists/{id}/items."""
+
     client_id: str | None = Field(default=None, max_length=64)
     name: str = Field(min_length=1, max_length=255)
     quantity: int = Field(default=1, ge=1, le=INT_MAX)
@@ -292,6 +324,8 @@ class ShoppingItemCreate(CleanModel):
 
 
 class ShoppingItemUpdate(CleanModel):
+    """Body of PATCH /shopping-lists/{id}/items/{item_id}."""
+
     name: str | None = Field(default=None, min_length=1, max_length=255)
     quantity: int | None = Field(default=None, ge=1, le=INT_MAX)
     price: Decimal | None = Field(default=None, ge=0, le=MONEY_MAX)
@@ -316,6 +350,8 @@ class ShoppingItemUpdate(CleanModel):
 
 
 class ShoppingItemOut(ApiModel):
+    """A shopping item as the REST routes return it."""
+
     id: int
     client_id: str
     list_id: int
@@ -334,6 +370,8 @@ class ShoppingItemOut(ApiModel):
 
 
 class ShoppingListOut(ApiModel):
+    """A shopping list with its live items, newest first."""
+
     id: int
     client_id: str
     name: str
@@ -343,6 +381,8 @@ class ShoppingListOut(ApiModel):
 
 
 class RecurringExpenseCreate(CleanModel):
+    """Body of POST /recurring-expenses."""
+
     client_id: str | None = Field(default=None, max_length=64)
     amount: Decimal = Field(gt=0, le=MONEY_MAX)
     category: str = Field(min_length=1, max_length=100)
@@ -371,6 +411,8 @@ class RecurringExpenseCreate(CleanModel):
 
 
 class RecurringExpenseUpdate(CleanModel):
+    """Body of PATCH /recurring-expenses/{id}; only the fields sent change."""
+
     amount: Decimal | None = Field(default=None, gt=0, le=MONEY_MAX)
     category: str | None = Field(default=None, min_length=1, max_length=100)
     payment_method: str | None = Field(default=None, max_length=100)
@@ -390,6 +432,8 @@ class RecurringExpenseUpdate(CleanModel):
 
 
 class RecurringExpenseOut(ApiModel):
+    """A recurring expense, with its period given as a unit."""
+
     id: int
     client_id: str
     amount: Decimal
@@ -410,6 +454,8 @@ class RecurringExpenseOut(ApiModel):
 
 
 class NotificationCreate(CleanModel):
+    """Body of POST /notifications."""
+
     client_id: str | None = Field(default=None, max_length=64)
     type: str = Field(min_length=1, max_length=50)
     title: str = Field(min_length=1, max_length=255)
@@ -422,10 +468,14 @@ class NotificationCreate(CleanModel):
 
 
 class NotificationUpdate(CleanModel):
+    """Body of PATCH /notifications/{id}."""
+
     is_read: bool | None = None
 
 
 class NotificationOut(ApiModel):
+    """A notification as the REST routes return it."""
+
     id: int
     client_id: str
     type: str
@@ -439,6 +489,8 @@ class NotificationOut(ApiModel):
 
 
 class UserSettingsUpdate(CleanModel):
+    """Body of PATCH /settings; only the fields sent change."""
+
     notifications_enabled: bool | None = None
     notifications_muted: bool | None = None
     notify_low_balance: bool | None = None
@@ -457,6 +509,8 @@ class UserSettingsUpdate(CleanModel):
 
 
 class UserSettingsOut(ApiModel):
+    """The settings row as GET and PATCH /settings return it."""
+
     notifications_enabled: bool
     notifications_muted: bool
     notify_low_balance: bool
@@ -478,6 +532,8 @@ class UserSettingsOut(ApiModel):
 
 
 class NewsArticleOut(ApiModel):
+    """One stored news article."""
+
     id: int
     title: str
     source: str
@@ -487,6 +543,8 @@ class NewsArticleOut(ApiModel):
 
 
 class NewsRefreshOut(BaseModel):
+    """Outcome of POST /online/news/refresh."""
+
     ok: bool
     fetched: int = 0
     matched: int = 0

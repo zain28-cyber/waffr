@@ -1,3 +1,8 @@
+"""/savings-goals and /savings-transfers: goals and the money moved into them.
+
+A goal's saved amount is derived from its live transfers on every read.
+"""
+
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -105,6 +110,7 @@ def list_goals(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """The user's live goals by priority, with saved amounts."""
     goals = (
         db.query(SavingsGoal)
         .filter(
@@ -124,11 +130,16 @@ def create_goal(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Create a goal, or return the one with the same client id.
+
+    Periodic goals need an amount, a deduct frequency and a duration count.
+    """
     client_id = normalize_client_id(data.client_id)
     existing = find_by_client_id(db, SavingsGoal, current_user.id, client_id)
     if existing is not None:
         return _goal_out(existing, _user_transfers(db, current_user.id))
 
+    # A periodic goal needs a complete deduction plan.
     if data.is_periodic:
         if data.allocate_amount is None or data.allocate_amount <= 0:
             raise HTTPException(
@@ -146,6 +157,7 @@ def create_goal(
                 detail="Periodic goals require duration_count",
             )
 
+    # New goals go last unless a priority is given.
     count = (
         db.query(SavingsGoal)
         .filter(
@@ -188,6 +200,7 @@ def get_goal(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """One goal with its saved amount, or 404."""
     row = owned_or_404(db, SavingsGoal, goal_id, current_user.id)
     return _goal_out(row, _user_transfers(db, current_user.id))
 
@@ -199,6 +212,7 @@ def update_goal(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Change the fields sent; is_completed also sets or clears completion."""
     row = owned_or_404(db, SavingsGoal, goal_id, current_user.id)
     updates = data.model_dump(exclude_unset=True)
 
@@ -245,6 +259,7 @@ def delete_goal(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Soft-delete a goal. Its transfers stay."""
     row = owned_or_404(db, SavingsGoal, goal_id, current_user.id)
     row.deleted_at = utc_now()
     row.updated_at = utc_now()
@@ -257,6 +272,7 @@ def list_transfers(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """The user's live transfers, newest first."""
     rows = (
         db.query(SavingsTransfer)
         .filter(
@@ -275,6 +291,7 @@ def create_transfer(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Create a transfer, or return the one with the same client id."""
     client_id = normalize_client_id(data.client_id)
     existing = find_by_client_id(db, SavingsTransfer, current_user.id, client_id)
     if existing is not None:
@@ -309,6 +326,7 @@ def get_transfer(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """One transfer, or 404."""
     row = owned_or_404(db, SavingsTransfer, transfer_id, current_user.id)
     return SavingsTransferOut.model_validate(row)
 
@@ -319,6 +337,7 @@ def delete_transfer(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Soft-delete a transfer."""
     row = owned_or_404(db, SavingsTransfer, transfer_id, current_user.id)
     row.deleted_at = utc_now()
     row.updated_at = utc_now()

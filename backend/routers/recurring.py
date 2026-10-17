@@ -1,3 +1,5 @@
+"""/recurring-expenses: scheduled expenses with an interval and a next due date."""
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -48,6 +50,7 @@ def list_recurring(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """The user's live recurring expenses, newest first."""
     rows = (
         db.query(RecurringExpense)
         .filter(
@@ -66,6 +69,7 @@ def create_recurring(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Create a recurring expense, or return the one with the same client id."""
     client_id = normalize_client_id(data.client_id)
     existing = find_by_client_id(db, RecurringExpense, current_user.id, client_id)
     if existing is not None:
@@ -98,6 +102,7 @@ def get_recurring(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """One recurring expense, or 404."""
     return _to_out(owned_or_404(db, RecurringExpense, expense_id, current_user.id))
 
 
@@ -108,6 +113,7 @@ def update_recurring(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Change the fields sent."""
     row = owned_or_404(db, RecurringExpense, expense_id, current_user.id)
     updates = data.model_dump(exclude_unset=True)
 
@@ -139,6 +145,7 @@ def delete_recurring(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Soft-delete a recurring expense."""
     row = owned_or_404(db, RecurringExpense, expense_id, current_user.id)
     row.deleted_at = utc_now()
     row.updated_at = utc_now()

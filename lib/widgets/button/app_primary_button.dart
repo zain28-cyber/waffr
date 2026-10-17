@@ -6,20 +6,30 @@ import 'package:flutter/services.dart';
 import 'package:waffr/core/theme/app_motion.dart';
 import 'package:waffr/core/theme/app_color.dart';
 import 'package:waffr/widgets/containers/glass.dart';
+import 'package:waffr/core/theme/app_palette.dart';
 
+/// The app's primary action button.
 class AppPrimaryButton extends StatefulWidget {
+  /// Button text.
   final String label;
+
+  /// Called on tap while enabled.
   final VoidCallback onTap;
 
   /// Greyed out when false. Taps then go to [onDisabledTap], if given, so a
   /// form can explain what is missing.
   final bool enabled;
+
+  /// Called on tap while disabled.
   final VoidCallback? onDisabledTap;
 
   /// Shows a spinner instead of the label and ignores taps.
   final bool busy;
+
+  /// Optional icon before the label.
   final IconData? icon;
 
+  /// Creates a [AppPrimaryButton].
   const AppPrimaryButton({
     super.key,
     required this.label,
@@ -34,6 +44,7 @@ class AppPrimaryButton extends StatefulWidget {
   State<AppPrimaryButton> createState() => _AppPrimaryButtonState();
 }
 
+/// State of [AppPrimaryButton].
 class _AppPrimaryButtonState extends State<AppPrimaryButton> {
   bool _pressed = false;
 
@@ -52,7 +63,8 @@ class _AppPrimaryButtonState extends State<AppPrimaryButton> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = isDark ? AppColors.darkAccent : AppColors.lightAccent;
+    final palette = AppPalette.of(context);
+    final accent = palette.accent;
     // Disabled fills are grey, so their label switches to a grey that
     // stays readable in both themes.
     final onAccent = enabled || busy
@@ -60,10 +72,10 @@ class _AppPrimaryButtonState extends State<AppPrimaryButton> {
         : (isDark
               ? AppColors.darkTextPrimary.withValues(alpha: 0.6)
               : AppColors.lightOnAccent);
-    final textSecondary = isDark
-        ? AppColors.darkTextSecondary
-        : AppColors.lightTextSecondary;
+    final textSecondary = palette.textSecondary;
 
+    // Busy ignores taps; disabled taps go to [onDisabledTap]. Only real
+    // actions get the haptic tap.
     final VoidCallback? action = busy
         ? null
         : (enabled ? onTap : onDisabledTap);
@@ -75,6 +87,7 @@ class _AppPrimaryButtonState extends State<AppPrimaryButton> {
           };
     final radius = BorderRadius.circular(22);
 
+    // Presses shrink the button a little and release with a small bounce.
     return Semantics(
       button: true,
       enabled: enabled && !busy,
@@ -112,6 +125,7 @@ class _AppPrimaryButtonState extends State<AppPrimaryButton> {
                 child: SizedBox(
                   height: 58,
                   child: Center(
+                    // A spinner while busy, else the label and optional icon.
                     child: busy
                         ? SizedBox(
                             width: 22,

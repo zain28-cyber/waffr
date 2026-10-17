@@ -1,17 +1,22 @@
+// First-launch theme picker with live light and dark home-screen previews.
+
 import 'package:flutter/material.dart';
 import 'package:waffr/core/theme/app_palette.dart';
 import 'package:waffr/widgets/brand/waffr_logo.dart';
 import 'package:waffr/widgets/button/app_primary_button.dart';
 import 'package:waffr/core/theme/app_motion.dart';
 
-// First-launch light/dark picker before entering the app. Each choice shows a
-// small preview of the home screen in that theme; picking one switches the
-// app theme live so the whole screen follows it.
-
+/// First-launch light/dark picker before entering the app. Each choice shows
+/// a small preview of the home screen in that theme; picking one switches the
+/// app theme live so the whole screen follows it.
 class ThemeSelectScreen extends StatefulWidget {
+  /// Applies (and persists, in `main.dart`) the chosen theme mode.
   final void Function(ThemeMode mode) onThemeChanged;
+
+  /// Leaves the screen; the gate marks first launch as done.
   final VoidCallback onContinue;
 
+  /// Creates a [ThemeSelectScreen].
   const ThemeSelectScreen({
     super.key,
     required this.onThemeChanged,
@@ -22,7 +27,9 @@ class ThemeSelectScreen extends StatefulWidget {
   State<ThemeSelectScreen> createState() => _ThemeSelectScreenState();
 }
 
+/// State of [ThemeSelectScreen]. Starts from the platform brightness.
 class _ThemeSelectScreenState extends State<ThemeSelectScreen> {
+  /// Currently selected option.
   late bool _isDark;
 
   @override
@@ -33,12 +40,14 @@ class _ThemeSelectScreenState extends State<ThemeSelectScreen> {
         Brightness.dark;
   }
 
+  /// Selects an option and applies it live.
   void _select(bool dark) {
     if (dark == _isDark) return;
     setState(() => _isDark = dark);
     widget.onThemeChanged(dark ? ThemeMode.dark : ThemeMode.light);
   }
 
+  /// Applies the selection (even if untouched) and continues.
   void _continue() {
     widget.onThemeChanged(_isDark ? ThemeMode.dark : ThemeMode.light);
     widget.onContinue();
@@ -58,6 +67,7 @@ class _ThemeSelectScreenState extends State<ThemeSelectScreen> {
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
               child: Column(
                 children: [
+                  // Logo, title and subtitle.
                   const Spacer(flex: 2),
                   const WaffrLogo(size: 64),
                   const SizedBox(height: 20),
@@ -95,6 +105,7 @@ class _ThemeSelectScreenState extends State<ThemeSelectScreen> {
                     ),
                   ),
                   const Spacer(),
+                  // Light and dark preview cards side by side.
                   Row(
                     children: [
                       Expanded(
@@ -118,6 +129,7 @@ class _ThemeSelectScreenState extends State<ThemeSelectScreen> {
                       ),
                     ],
                   ),
+                  // Continue button pinned to the bottom.
                   const Spacer(flex: 2),
                   AppPrimaryButton(label: 'متابعة', onTap: _continue),
                 ],
@@ -179,13 +191,15 @@ class _ThemeOption extends StatelessWidget {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: (selected ? colors.accent : Colors.black)
-                      .withValues(alpha: selected ? 0.18 : 0.06),
+                  color: (selected ? colors.accent : Colors.black).withValues(
+                    alpha: selected ? 0.18 : 0.06,
+                  ),
                   blurRadius: selected ? 18 : 10,
                   offset: const Offset(0, 6),
                 ),
               ],
             ),
+            // Preview, then icon, name and check mark.
             child: Column(
               children: [
                 AspectRatio(
@@ -228,6 +242,7 @@ class _ThemeOption extends StatelessWidget {
   }
 }
 
+/// Round check mark that fills with the accent when [selected].
 class _CheckMark extends StatelessWidget {
   final bool selected;
   final AppPalette colors;
@@ -267,8 +282,11 @@ class _MiniHome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final line = colors.textPrimary.withValues(alpha: 0.12);
-    final border = Border.all(color: colors.textPrimary.withValues(alpha: 0.08));
+    final border = Border.all(
+      color: colors.textPrimary.withValues(alpha: 0.08),
+    );
 
+    // Rounded bar at a fraction of the available width.
     Widget bar(double widthFactor, double height, Color color) {
       return FractionallySizedBox(
         widthFactor: widthFactor,
@@ -283,6 +301,7 @@ class _MiniHome extends StatelessWidget {
       );
     }
 
+    // List row: icon dot plus a text bar.
     Widget row(double widthFactor) {
       return Padding(
         padding: const EdgeInsets.only(top: 7),
@@ -314,6 +333,7 @@ class _MiniHome extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Header: avatar dot and title bar.
           Row(
             children: [
               Container(
@@ -329,6 +349,7 @@ class _MiniHome extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
+          // Balance card: label, amount, and progress bar.
           Container(
             padding: const EdgeInsets.all(9),
             decoration: BoxDecoration(
@@ -355,6 +376,7 @@ class _MiniHome extends StatelessWidget {
               ],
             ),
           ),
+          // A few list rows, then the bottom bar.
           const SizedBox(height: 4),
           row(0.8),
           row(0.6),

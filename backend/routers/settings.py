@@ -1,3 +1,5 @@
+"""/settings: read and change the user's settings row (shared with /sync)."""
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -50,6 +52,7 @@ def get_settings(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """The user's settings, created with defaults when missing."""
     return _to_out(_get_or_create(db, current_user))
 
 
@@ -59,6 +62,7 @@ def update_settings(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Change the fields sent. processed_period_keys is replaced, not merged."""
     row = _get_or_create(db, current_user)
     updates = data.model_dump(exclude_unset=True)
 

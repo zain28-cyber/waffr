@@ -1,48 +1,24 @@
 # lib/data
 
-Ledger types, the on-device stores, and services that talk to disk or the network.
+Ledger types, the on-device stores, and services that talk to disk, the OS
+or the network. Prefs (via `AppPrefs`) are the offline source of truth;
+`core/sync` copies them to the server for signed-in users.
 
-## models/
-
-Plain data and fixed catalogs. No `SharedPreferences` and no widgets, except
-`nearby_place_category.dart`, which also launches a maps search.
-
-| File | Contents |
+| Folder | What it holds |
 | --- | --- |
-| `transaction.dart` | One income, expense, or savings movement. |
-| `savings_goal.dart` | A savings target and its duration. |
-| `currency.dart` | The currency catalog and `defaultCurrencyCode`. |
-| `expense_categories.dart` | Built-in category names, icons and chart colors. |
-| `expense_preset.dart` | A saved expense reused from the star on the expense sheet. |
-| `country.dart` | Countries with Arabic names and calling codes. |
-| `recurring_expense.dart` | A bill that posts on a schedule. |
-| `calendar_period.dart` | Week/month windows used by savings and notifications. |
-| `exchange_rate.dart` | One rate row for the online tab. |
-| `news_article.dart` | One news item. |
-| `app_notification.dart` | A stored notification and its thresholds. |
-| `registration_profile.dart` | Fields collected at sign-up. |
-| `nearby_place_category.dart` | Chips that open a maps search. |
+| [`models/`](models/README.md) | Plain records and catalogs: `WaffrTransaction`, `SavingsGoal`, `CalendarPeriod`, currencies, categories (`CustomCategoryEntry`), presets, recurring bills, `ShoppingItem`, notifications, sign-up profile, online feed rows. |
+| [`stores/`](stores/README.md) | `ChangeNotifier` singletons: `TransactionStore` (split into `transaction_store_*.dart` part files), `CurrencyStore`, `CategoryStore`, `ExpensePresetStore`, `ShoppingListStore`, `RecurringExpenseStore`. |
+| [`services/`](services/README.md) | `NotificationService` (with part files), `SystemNotifications`, `UsageStreakService`, `HomeWidgetSync`, `BackupService`, `LocalDataReset`, `ProfileIdentity`, `SmartSettings`, `OnlineFeedService`, `LegacyProfilePhoto`. |
 
-## stores/
+Dependency direction inside `data`: mostly services -> stores -> models
+(exception: `RecurringExpenseStore` posts alerts through `NotificationService`). `data`
+uses `core/prefs`, `core/sync` (dirty flag, tombstones, merge, mapper,
+clock), `core/utils/money.dart` and a few `core/insights` helpers; it never
+imports `widgets` or `screens`.
 
-`ChangeNotifier` singletons. Each one loads once (`ensureLoaded`) and then
-serves memory.
+Rules for new code:
 
-| File | Contents |
-| --- | --- |
-| `transaction_store.dart` | Transactions, balance, income settings, savings goals. |
-| `currency_store.dart` | Enabled currencies and the active one. Re-exports `models/currency.dart`. |
-| `category_store.dart` | User-added categories, removed built-ins (synced in settings), and a local archive of removed categories. |
-| `expense_preset_store.dart` | Saved expenses (synced as `expense_presets`). |
-| `shopping_list_store.dart` | Shopping items. |
-| `recurring_expense_store.dart` | Recurring bills and the "due" pass. |
-
-## services/
-
-| File | Contents |
-| --- | --- |
-| `notification_service.dart` | Builds and stores in-app notifications. |
-| `online_feed_service.dart` | Static exchange rates and news from the API. |
-| `legacy_profile_photo.dart` | Deletes the profile photo older versions saved. |
-| `local_data_reset.dart` | Wipes restorable local data. |
-| `backup_service.dart` | Local account data: guest choice, display name, wiping data on account delete or switch. |
+- Load with `await XStore.instance.ensureLoaded()`, then read memory.
+- After a local change, persist, call `SyncDirty.mark()`, and record deletes
+  with `SyncTombstones`, so the next sync carries them.
+- Only `core/sync/sync_apply.dart` calls the stores' `applyRemoteSync`.

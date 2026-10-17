@@ -4,15 +4,28 @@ import 'dart:convert';
 
 import 'package:waffr/data/models/currency.dart';
 
-enum RecurringUnit { day, week, month }
+/// The step between charges of a recurring bill.
+enum RecurringUnit {
+  /// Every N days.
+  day,
 
+  /// Every N weeks.
+  week,
+
+  /// Every N months (same day, clamped to the month's end).
+  month,
+}
+
+/// Arabic names of each [RecurringUnit].
 extension RecurringUnitLabel on RecurringUnit {
+  /// Singular ("شهر").
   String get label => switch (this) {
     RecurringUnit.day => 'يوم',
     RecurringUnit.week => 'أسبوع',
     RecurringUnit.month => 'شهر',
   };
 
+  /// Plural ("أشهر").
   String get plural => switch (this) {
     RecurringUnit.day => 'أيام',
     RecurringUnit.week => 'أسابيع',
@@ -20,26 +33,55 @@ extension RecurringUnitLabel on RecurringUnit {
   };
 }
 
-// Scheduled expense; [nextDueAt] drives catch-up in the store. With
-// [requiresConfirmation] the charge waits for the user instead of posting.
+/// Scheduled expense; [nextDueAt] drives catch-up in the store. With
+/// [requiresConfirmation] the charge waits for the user instead of posting.
 class RecurringExpense {
+  /// Local id (also the sync client id).
   final String id;
+
+  /// Amount per charge.
   final double amount;
+
+  /// Currency of the charges.
   final String currencyCode;
+
+  /// Category of the posted expenses.
   final String category;
+
+  /// Cash or card.
   final String paymentMethod;
+
+  /// Optional note; also its name in notices.
   final String? note;
+
+  /// Step unit.
   final RecurringUnit unit;
+
+  /// Every how many [unit]s.
   final int intervalCount;
+
+  /// When the schedule was added.
   final DateTime createdAt;
+
+  /// The next charge not posted yet.
   final DateTime nextDueAt;
+
+  /// False pauses the schedule.
   final bool enabled;
+
+  /// True waits for the user's approval before posting.
   final bool requiresConfirmation;
-  // Postponed charge: remind again at [remindAt] or when income is added.
+
+  /// Postponed charge: remind again at [remindAt] or when income is added.
   final DateTime? remindAt;
+
+  /// Remind again when an income is added.
   final bool remindOnIncome;
+
+  /// Last change (UTC), for sync.
   final DateTime? updatedAt;
 
+  /// A schedule.
   const RecurringExpense({
     required this.id,
     required this.amount,
@@ -58,11 +100,10 @@ class RecurringExpense {
     this.updatedAt,
   });
 
+  /// Last change for sync, falling back to creation time.
   DateTime get syncUpdatedAt => (updatedAt ?? createdAt).toUtc();
 
-  bool get isPostponed => remindOnIncome || remindAt != null;
-
-  // Charges of this schedule whose date has passed, oldest first (capped).
+  /// Charges of this schedule whose date has passed, oldest first (capped).
   List<DateTime> dueDates(DateTime now, {int max = 24}) {
     final dates = <DateTime>[];
     var cursor = nextDueAt;
@@ -73,7 +114,7 @@ class RecurringExpense {
     return dates;
   }
 
-  // Approximate cost per month, used for the obligations total.
+  /// Approximate cost per month, used for the obligations total.
   double get monthlyEquivalent {
     final count = intervalCount < 1 ? 1 : intervalCount;
     return switch (unit) {
@@ -83,7 +124,7 @@ class RecurringExpense {
     };
   }
 
-  // Arabic "every N days/weeks/months" for notes and UI.
+  /// Arabic "every N days/weeks/months" for notes and UI.
   String get intervalDescription {
     if (intervalCount <= 1) {
       return 'كل ${unit.label}';
@@ -92,6 +133,8 @@ class RecurringExpense {
     return 'كل $intervalCount ${unit.plural}';
   }
 
+  /// A copy with fields replaced; [clearReminder] drops a postponement
+  /// and [touch] stamps [updatedAt] now.
   RecurringExpense copyWith({
     double? amount,
     String? currencyCode,
@@ -118,13 +161,14 @@ class RecurringExpense {
       enabled: enabled ?? this.enabled,
       requiresConfirmation: requiresConfirmation ?? this.requiresConfirmation,
       remindAt: clearReminder ? null : (remindAt ?? this.remindAt),
-      remindOnIncome:
-          clearReminder ? false : (remindOnIncome ?? this.remindOnIncome),
-      updatedAt: updatedAt ??
-          (touch ? DateTime.now().toUtc() : this.updatedAt),
+      remindOnIncome: clearReminder
+          ? false
+          : (remindOnIncome ?? this.remindOnIncome),
+      updatedAt: updatedAt ?? (touch ? DateTime.now().toUtc() : this.updatedAt),
     );
   }
 
+  /// The prefs JSON shape.
   Map<String, dynamic> toJson() => {
     'id': id,
     'amount': amount,
@@ -143,9 +187,10 @@ class RecurringExpense {
     'updatedAt': syncUpdatedAt.toIso8601String(),
   };
 
+  /// [toJson] as a string.
   String encode() => jsonEncode(toJson());
 
-  // Prefs decode; rejects non-positive amount or interval.
+  /// Prefs decode; rejects non-positive amount or interval.
   static RecurringExpense? decode(String raw) {
     try {
       final decoded = jsonDecode(raw);
@@ -184,9 +229,8 @@ class RecurringExpense {
         nextDueAt: nextDueAt,
         enabled: decoded['enabled'] != false,
         requiresConfirmation: decoded['requiresConfirmation'] == true,
-        remindAt: DateTime.tryParse(
-          decoded['remindAt']?.toString() ?? '',
-        )?.toLocal(),
+        remindAt: DateTime.tryParse(decoded['remindAt']?.toString() ?? '')
+            ?.toLocal(),
         remindOnIncome: decoded['remindOnIncome'] == true,
         updatedAt: DateTime.tryParse(decoded['updatedAt']?.toString() ?? ''),
       );
@@ -195,7 +239,7 @@ class RecurringExpense {
     }
   }
 
-  // Advances [from] by count units; months clamp to the last valid day.
+  /// Advances [from] by count units; months clamp to the last valid day.
   static DateTime nextDueFrom(DateTime from, RecurringUnit unit, int count) {
     final safeCount = count < 1 ? 1 : count;
 
@@ -224,12 +268,14 @@ class RecurringExpense {
 
   static int _seq = 0;
 
+  /// A fresh local id.
   static String newId() =>
       'r${DateTime.now().microsecondsSinceEpoch}_${_seq++}';
 
   /// Expenses posted by a schedule carry `recurring:<id>:<stamp>` as source.
   static const String sourcePrefix = 'recurring:';
 
+  /// True when an expense was posted by a schedule.
   static bool isRecurringSource(String? sourceId) =>
       sourceId != null && sourceId.startsWith(sourcePrefix);
 
@@ -242,6 +288,7 @@ class RecurringExpense {
     return id.isEmpty ? null : id;
   }
 
+  /// A stored unit name; days when unknown.
   static RecurringUnit _parseUnit(String? raw) {
     return switch (raw) {
       'week' => RecurringUnit.week,
@@ -250,6 +297,7 @@ class RecurringExpense {
     };
   }
 
+  /// Trimmed text, or null when blank.
   static String? _text(Object? value) {
     if (value == null) return null;
     final text = value.toString().trim();

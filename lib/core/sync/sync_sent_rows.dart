@@ -15,9 +15,9 @@ class SyncSentRows {
 
   /// Fingerprints to compare against (a copy, safe to hand to an isolate).
   SyncRowPrints get known => {
-        for (final entry in _prints.entries)
-          entry.key: Map<String, String>.of(entry.value),
-      };
+    for (final entry in _prints.entries)
+      entry.key: Map<String, String>.of(entry.value),
+  };
 
   /// True when nothing has been remembered yet.
   bool get isEmpty => _prints.values.every((rows) => rows.isEmpty);

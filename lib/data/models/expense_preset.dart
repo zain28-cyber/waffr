@@ -6,22 +6,45 @@ import 'package:waffr/core/sync/sync_clock.dart';
 import 'package:waffr/data/models/currency.dart';
 import 'package:waffr/data/models/recurring_expense.dart';
 
+/// A saved expense the user can reuse from the star on the expense sheet.
 class ExpensePreset {
+  /// Local id (also the sync client id).
   final String id;
 
   /// Amount as typed, before [multiplier] is applied.
   final double amount;
+
+  /// How many times [amount] is posted (×1–×10).
   final int multiplier;
+
+  /// Currency of the amount.
   final String currencyCode;
+
+  /// Category label.
   final String category;
+
+  /// Cash or card.
   final String paymentMethod;
+
+  /// Optional note.
   final String? note;
+
+  /// True when it creates a recurring bill.
   final bool recurring;
+
+  /// Recurrence unit, when [recurring].
   final RecurringUnit unit;
+
+  /// Every how many [unit]s, when [recurring].
   final int intervalCount;
+
+  /// When it was saved; newest first in the list.
   final DateTime createdAt;
+
+  /// Last change (UTC), for sync.
   final DateTime? updatedAt;
 
+  /// A saved expense.
   const ExpensePreset({
     required this.id,
     required this.amount,
@@ -37,6 +60,7 @@ class ExpensePreset {
     this.updatedAt,
   });
 
+  /// Last change for sync, falling back to creation time.
   DateTime get syncUpdatedAt => (updatedAt ?? createdAt).toUtc();
 
   /// Amount that the expense will post (typed amount times the multiplier).
@@ -57,26 +81,30 @@ class ExpensePreset {
 
   static int _seq = 0;
 
+  /// A fresh local id.
   static String newId() =>
       'p${DateTime.now().microsecondsSinceEpoch}_${_seq++}';
 
+  /// The prefs JSON shape.
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'amount': amount,
-        'multiplier': multiplier,
-        'currencyCode': currencyCode,
-        'category': category,
-        'paymentMethod': paymentMethod,
-        'note': note,
-        'recurring': recurring,
-        'unit': unit.name,
-        'intervalCount': intervalCount,
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': syncUpdatedAt.toIso8601String(),
-      };
+    'id': id,
+    'amount': amount,
+    'multiplier': multiplier,
+    'currencyCode': currencyCode,
+    'category': category,
+    'paymentMethod': paymentMethod,
+    'note': note,
+    'recurring': recurring,
+    'unit': unit.name,
+    'intervalCount': intervalCount,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': syncUpdatedAt.toIso8601String(),
+  };
 
+  /// [toJson] as a string.
   String encode() => jsonEncode(toJson());
 
+  /// Reads prefs JSON; null when invalid.
   static ExpensePreset? decode(String raw) {
     try {
       final decoded = jsonDecode(raw);
@@ -101,21 +129,23 @@ class ExpensePreset {
     }
   }
 
+  /// The /sync `expense_presets` row.
   Map<String, dynamic> toSyncJson() => {
-        'client_id': id,
-        'amount': amount.toString(),
-        'multiplier': multiplier,
-        'currency_code': currencyCode,
-        'category': category,
-        'payment_method': paymentMethod,
-        'note': note,
-        'recurring': recurring,
-        'unit': unit.name,
-        'interval_count': intervalCount,
-        'created_at': toSyncIso(createdAt),
-        'updated_at': toSyncIso(syncUpdatedAt),
-      };
+    'client_id': id,
+    'amount': amount.toString(),
+    'multiplier': multiplier,
+    'currency_code': currencyCode,
+    'category': category,
+    'payment_method': paymentMethod,
+    'note': note,
+    'recurring': recurring,
+    'unit': unit.name,
+    'interval_count': intervalCount,
+    'created_at': toSyncIso(createdAt),
+    'updated_at': toSyncIso(syncUpdatedAt),
+  };
 
+  /// Reads a /sync row; null when invalid.
   static ExpensePreset? fromSync(Map<String, dynamic> raw) {
     return _fromMap(
       id: raw['client_id'] ?? raw['id'],

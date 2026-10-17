@@ -61,8 +61,8 @@ Future<void> shareExpenseHistoryPdf(List<WaffrTransaction> expenses) async {
   }
 }
 
-// Android shares through a small native channel (it grants read access to
-// the file); everything else, and any channel failure, uses share_plus.
+/// Android shares through a small native channel (it grants read access to
+/// the file); everything else, and any channel failure, uses share_plus.
 Future<void> _sharePdfFile(File file) async {
   if (Platform.isAndroid) {
     try {

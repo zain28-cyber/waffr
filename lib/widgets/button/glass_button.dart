@@ -12,19 +12,37 @@ import 'package:waffr/widgets/containers/glass.dart';
 /// Shares the same translucent fill as cards — no extra blur pass — so buttons
 /// and glass surfaces stay consistent and cheap to paint.
 class GlassButton extends StatefulWidget {
+  /// Called on tap.
   final VoidCallback onTap;
 
   /// Optional second action on a long press.
   final VoidCallback? onLongPress;
+
+  /// Button content.
   final Widget child;
+
+  /// Fixed width, if any.
   final double? width;
+
+  /// Fixed height, if any.
   final double? height;
+
+  /// Space inside the glass.
   final EdgeInsetsGeometry padding;
+
+  /// Space outside the glass.
   final EdgeInsetsGeometry margin;
+
+  /// Corner radius.
   final double borderRadius;
+
+  /// Which theme color tints the glass.
   final GlassColorType colorType;
+
+  /// How strongly the glass is tinted, 0..1.
   final double tintOpacity;
 
+  /// Creates a [GlassButton].
   const GlassButton({
     super.key,
     required this.onTap,
@@ -43,6 +61,7 @@ class GlassButton extends StatefulWidget {
   State<GlassButton> createState() => _GlassButtonState();
 }
 
+/// State of [GlassButton].
 class _GlassButtonState extends State<GlassButton> {
   bool _pressed = false;
 
@@ -97,13 +116,25 @@ class _GlassButtonState extends State<GlassButton> {
 /// Square glass icon button: the shell header actions (settings, bell) and
 /// the balance card shortcuts share it so they look the same.
 class GlassIconButton extends StatelessWidget {
+  /// The icon.
   final IconData icon;
+
+  /// Accessibility label.
   final String label;
+
+  /// Called on tap.
   final VoidCallback onPressed;
+
+  /// Called on a long press.
   final VoidCallback? onLongPress;
+
+  /// Draws the icon muted (inactive state).
   final bool dimmed;
+
+  /// Shows a red dot (e.g. unread notifications).
   final bool showDot;
 
+  /// Creates a [GlassIconButton].
   const GlassIconButton({
     super.key,
     required this.icon,
@@ -114,6 +145,7 @@ class GlassIconButton extends StatelessWidget {
     this.showDot = false,
   });
 
+  /// Width and height.
   static const double size = 44;
 
   @override
@@ -143,12 +175,7 @@ class GlassIconButton extends StatelessWidget {
                 scale: Tween<double>(begin: 0.7, end: 1).animate(animation),
                 child: FadeTransition(opacity: animation, child: child),
               ),
-              child: Icon(
-                icon,
-                key: ValueKey(icon),
-                size: 23,
-                color: color,
-              ),
+              child: Icon(icon, key: ValueKey(icon), size: 23, color: color),
             ),
             PositionedDirectional(
               top: 9,

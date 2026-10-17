@@ -2,19 +2,24 @@
 // with their number, category names with the definite article, and
 // prepositions joined the way they are written.
 
-// One noun (with any adjective) in each form Arabic counting needs.
+/// One noun (with any adjective) in each form Arabic counting needs.
 class ArabicCount {
-  // 1: the full phrase without the digit ("يوم واحد").
+  /// 1: the full phrase without the digit ("يوم واحد").
   final String one;
-  // 2: dual, accusative/genitive ("يومين").
+
+  /// 2: dual, accusative/genitive ("يومين").
   final String two;
-  // 3-10: plural ("أيام").
+
+  /// 3-10: plural ("أيام").
   final String few;
-  // 11-99: singular accusative ("يوماً").
+
+  /// 11-99: singular accusative ("يوماً").
   final String many;
-  // 100, 200...: singular genitive ("يوم").
+
+  /// 100, 200...: singular genitive ("يوم").
   final String hundred;
 
+  /// A noun given in all five forms.
   const ArabicCount({
     required this.one,
     required this.two,
@@ -23,6 +28,7 @@ class ArabicCount {
     required this.hundred,
   });
 
+  /// [n] with the noun in the form that agrees with it ("3 أيام").
   String of(int n) {
     if (n == 1) return one;
     if (n == 2) return two;
@@ -33,9 +39,11 @@ class ArabicCount {
   }
 }
 
+/// The counted nouns and phrase helpers the generated texts share.
 class Ar {
   Ar._();
 
+  /// "يوم واحد", "3 أيام", "11 يوماً".
   static const days = ArabicCount(
     one: 'يوم واحد',
     two: 'يومين',
@@ -44,6 +52,7 @@ class Ar {
     hundred: 'يوم',
   );
 
+  /// Days in a row, for the usage streak.
   static const consecutiveDays = ArabicCount(
     one: 'يوم واحد',
     two: 'يومين متتاليين',
@@ -52,6 +61,7 @@ class Ar {
     hundred: 'يوم متتالٍ',
   );
 
+  /// Expense counts.
   static const expenses = ArabicCount(
     one: 'مصروف واحد',
     two: 'مصروفين',
@@ -60,6 +70,7 @@ class Ar {
     hundred: 'مصروف',
   );
 
+  /// Small-expense counts (the "small amounts add up" insight).
   static const smallExpenses = ArabicCount(
     one: 'مصروف صغير واحد',
     two: 'مصروفين صغيرين',
@@ -68,6 +79,7 @@ class Ar {
     hundred: 'مصروف صغير',
   );
 
+  /// How many times something happened.
   static const times = ArabicCount(
     one: 'مرة واحدة',
     two: 'مرتين',
@@ -76,6 +88,7 @@ class Ar {
     hundred: 'مرة',
   );
 
+  /// Goal counts.
   static const goals = ArabicCount(
     one: 'هدف واحد',
     two: 'هدفين',
@@ -84,6 +97,7 @@ class Ar {
     hundred: 'هدف',
   );
 
+  /// Active goal counts, in the nominative ("لديك هدفان نشطان").
   static const activeGoals = ArabicCount(
     one: 'هدف نشط واحد',
     two: 'هدفان نشطان',
@@ -92,6 +106,7 @@ class Ar {
     hundred: 'هدف نشط',
   );
 
+  /// Shopping-list item counts.
   static const items = ArabicCount(
     one: 'عنصر واحد',
     two: 'عنصرين',
@@ -100,7 +115,8 @@ class Ar {
     hundred: 'عنصر',
   );
 
-  // Dual in the nominative ("لديك دفعتان"), the case it is used in.
+  /// Payment counts. Dual in the nominative ("لديك دفعتان"), the case it
+  /// is used in.
   static const payments = ArabicCount(
     one: 'دفعة واحدة',
     two: 'دفعتان',
@@ -109,6 +125,7 @@ class Ar {
     hundred: 'دفعة',
   );
 
+  /// Month counts.
   static const months = ArabicCount(
     one: 'شهر واحد',
     two: 'شهرين',
@@ -119,8 +136,8 @@ class Ar {
 
   static final RegExp _singleArabicWord = RegExp(r'^[ء-ي]+$');
 
-  // A category as a definite noun: "طعام" -> "الطعام". Names that cannot
-  // take the article (several words, Latin, «أخرى») become "تصنيف «…»".
+  /// A category as a definite noun: "طعام" -> "الطعام". Names that cannot
+  /// take the article (several words, Latin, «أخرى») become "تصنيف «…»".
   static String category(String name) {
     final trimmed = name.trim();
     if (trimmed == 'أخرى' || !_singleArabicWord.hasMatch(trimmed)) {
@@ -129,15 +146,14 @@ class Ar {
     return trimmed.startsWith('ال') ? trimmed : 'ال$trimmed';
   }
 
-  // لِـ joined to a definite noun: "الطعام" -> "للطعام".
+  /// لِـ joined to a definite noun: "الطعام" -> "للطعام".
   static String li(String phrase) =>
       phrase.startsWith('ال') ? 'لل${phrase.substring(2)}' : 'ل$phrase';
 
-  // بِـ joined: "الطعام" -> "بالطعام".
-  static String bi(String phrase) => 'ب$phrase';
-
+  /// A user-given name in Arabic quotes: «name».
   static String quote(String name) => '«${name.trim()}»';
 
+  /// Arabic weekday names by [DateTime.weekday].
   static const Map<int, String> weekdays = {
     DateTime.saturday: 'السبت',
     DateTime.sunday: 'الأحد',

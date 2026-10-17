@@ -27,7 +27,22 @@ import 'package:waffr/core/sync/sync_tombstones.dart';
 import 'package:waffr/data/services/usage_streak_service.dart';
 
 /// How a sync attempt ended.
-enum SyncStatus { success, offline, noAccount, failed, skipped }
+enum SyncStatus {
+  /// Pushed and pulled (or nothing needed to go out).
+  success,
+
+  /// No network; changes stay saved on the device.
+  offline,
+
+  /// Guest, or the session ended; sign-in is needed.
+  noAccount,
+
+  /// The server refused or the reply could not be applied.
+  failed,
+
+  /// Another sync was already running; this one joins it.
+  skipped,
+}
 
 /// Outcome of one sync attempt, including a user-facing Arabic message.
 class SyncResult {

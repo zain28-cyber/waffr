@@ -6,7 +6,7 @@ import 'package:waffr/core/prefs/app_prefs.dart';
 import 'package:waffr/data/services/usage_streak_service.dart';
 import 'package:waffr/data/stores/category_store.dart';
 
-// Reads and writes the on-device user profile used during login and sync push.
+/// Reads and writes the on-device user profile used during login and sync push.
 class ProfileSync {
   ProfileSync._();
 
@@ -20,7 +20,7 @@ class ProfileSync {
     'phone': 'user_phone',
   };
 
-  // Build the settings fragment sent on push.
+  /// Build the settings fragment sent on push.
   static Future<Map<String, dynamic>> fields() async {
     final prefs = await AppPrefs.instance;
     await UsageStreakService.instance.ensureLoaded();
@@ -38,7 +38,7 @@ class ProfileSync {
     };
   }
 
-  // Replace local profile with the signed-in account so a prior user cannot linger.
+  /// Replace local profile with the signed-in account so a prior user cannot linger.
   static Future<void> adoptAccount(Map<String, dynamic> profile) async {
     final prefs = await AppPrefs.instance;
     for (final entry in _accountKeys.entries) {
@@ -53,7 +53,7 @@ class ProfileSync {
     await SyncDirty.mark(settings: true);
   }
 
-  // Fill empty local fields from the account without overwriting user edits.
+  /// Fill empty local fields from the account without overwriting user edits.
   static Future<void> fillMissing(Map<String, dynamic> profile) async {
     final prefs = await AppPrefs.instance;
     for (final entry in _accountKeys.entries) {
@@ -66,7 +66,7 @@ class ProfileSync {
     }
   }
 
-  // Apply remote settings when the server copy is newer than local settings.
+  /// Apply remote settings when the server copy is newer than local settings.
   static Future<void> apply(Map<String, dynamic> settings) async {
     await UsageStreakService.instance.applyRemote(settings);
 

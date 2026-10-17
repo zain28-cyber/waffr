@@ -44,6 +44,7 @@ def _cors_origins() -> list[str]:
 
 
 def max_body_bytes(scope) -> int:
+    """Largest body allowed for this request."""
     # Only a signed-in sync gets the big allowance; anyone else's body is
     # refused before it is read and parsed.
     if scope.get("path") == "/sync" and bearer_user(scope) is not None:
@@ -52,6 +53,8 @@ def max_body_bytes(scope) -> int:
 
 
 class SecurityHeadersMiddleware:
+    """Adds the security headers to every response."""
+
     def __init__(self, app):
         self.app = app
 
@@ -137,6 +140,7 @@ async def _error(scope, receive, send, status: int, detail: str) -> None:
 
 
 def install(app: FastAPI) -> None:
+    """Add the middleware stack to [app]."""
     # Added inside-out: the last one added sees the request first.
     app.add_middleware(BodySizeLimitMiddleware)
     app.add_middleware(RateLimitMiddleware)

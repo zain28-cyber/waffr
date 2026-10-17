@@ -6,6 +6,7 @@ import 'package:waffr/core/utils/money.dart';
 import 'package:waffr/data/models/calendar_period.dart';
 import 'package:waffr/data/models/expense_categories.dart';
 import 'package:waffr/data/models/transaction.dart';
+import 'package:waffr/core/utils/calendar_days.dart';
 
 /// One calendar day of the export and its expenses, newest first.
 class ExpenseShareDay {
@@ -27,10 +28,11 @@ List<ExpenseShareDay> groupExpensesForShare(List<WaffrTransaction> expenses) {
     final date = DateTime(local.year, local.month, local.day);
     grouped.putIfAbsent(date, () => []).add(expense);
   }
-  final days = grouped.entries
-      .map((entry) => ExpenseShareDay(entry.key, entry.value))
-      .toList()
-    ..sort((a, b) => b.date.compareTo(a.date));
+  final days =
+      grouped.entries
+          .map((entry) => ExpenseShareDay(entry.key, entry.value))
+          .toList()
+        ..sort((a, b) => b.date.compareTo(a.date));
   for (final day in days) {
     day.expenses.sort((a, b) => b.dateTime.compareTo(a.dateTime));
   }
@@ -42,7 +44,7 @@ List<ExpenseShareDay> groupExpensesForShare(List<WaffrTransaction> expenses) {
 String expenseShareDayLabel(DateTime date) {
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
-  final difference = today.difference(date).inDays;
+  final difference = calendarDaysBetween(date, today);
   if (difference == 0) return 'اليوم';
   if (difference == 1) return 'أمس';
   if (date.year == today.year) {
@@ -55,6 +57,7 @@ String expenseShareDayLabel(DateTime date) {
 String buildExpenseHistoryText(List<WaffrTransaction> expenses) {
   final days = groupExpensesForShare(expenses);
   final buffer = StringBuffer('سجل المصروفات\n');
+  // One block per day: label, expense lines (with notes), day total.
   for (final day in days) {
     buffer.writeln();
     buffer.writeln(expenseShareDayLabel(day.date));
@@ -89,12 +92,12 @@ String expenseTotalsText(List<WaffrTransaction> expenses) {
   }
   return totals.entries
       .map(
-        (entry) =>
-            '${formatMoney(entry.value)} ${currencyLabelFor(entry.key)}',
+        (entry) => '${formatMoney(entry.value)} ${currencyLabelFor(entry.key)}',
       )
       .join('  •  ');
 }
 
+/// One expense as "category  •  time  •  amount currency".
 String _expenseLine(WaffrTransaction expense) {
   final category = categoryFor(expense.category).label;
   final amount = formatMoney(expense.amount);
@@ -103,6 +106,7 @@ String _expenseLine(WaffrTransaction expense) {
   return '$category  •  $time  •  $amount $currency';
 }
 
+/// "[label]: " followed by the per-currency totals of [expenses].
 String _totalsLine(String label, List<WaffrTransaction> expenses) {
   return '$label: ${expenseTotalsText(expenses)}';
 }

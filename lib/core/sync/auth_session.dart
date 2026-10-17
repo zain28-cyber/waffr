@@ -14,30 +14,43 @@ import 'package:waffr/core/security/data_key.dart';
 
 export 'package:waffr/core/sync/auth_errors.dart';
 
-// Simple success/failure wrapper for login and register UI.
+/// Simple success/failure wrapper for login and register UI.
 class AuthResult {
+  /// True when the call succeeded.
   final bool ok;
+
+  /// Arabic error text; empty on success.
   final String message;
 
-  const AuthResult.success()
-      : ok = true,
-        message = '';
+  /// A success.
+  const AuthResult.success() : ok = true, message = '';
 
+  /// A failure with an Arabic [message].
   const AuthResult.failure(this.message) : ok = false;
 }
 
-// Holds the Bearer token and account email. Server ownership always comes from
-// the token; guest mode has no token and never syncs. Switching accounts can
-// replace local data so one user's records do not bleed into another's.
+/// Holds the Bearer token and account email. Server ownership always comes from
+/// the token; guest mode has no token and never syncs. Switching accounts can
+/// replace local data so one user's records do not bleed into another's.
 class AuthSession {
   AuthSession._();
 
+  /// The app-wide session.
   static final AuthSession instance = AuthSession._();
 
+  /// Secure-storage key of the JWT (also its legacy prefs key).
   static const String tokenKey = 'waffer_sync_token';
+
+  /// Prefs key of the server time of the last successful sync.
   static const String lastSyncKey = 'waffer_last_sync_at';
+
+  /// Prefs key of the signed-in email.
   static const String accountEmailKey = 'waffer_account_email';
+
+  /// Prefs key of the email whose data is on this device.
   static const String dataOwnerKey = 'waffer_data_owner_email';
+
+  /// Prefs key where very old versions kept the password; always removed.
   static const String legacyPasswordKey = 'waffer_sync_password';
 
   static const Duration _timeout = Duration(seconds: 15);
@@ -45,12 +58,13 @@ class AuthSession {
   // v11 dropped EncryptedSharedPreferences; the default cipher storage is used.
   static const FlutterSecureStorage _secure = FlutterSecureStorage();
 
+  /// True when a token is stored (it may still be expired).
   Future<bool> isLoggedIn() async {
     final value = await token();
     return value != null && value.isNotEmpty;
   }
 
-  // Signed-in API email, or null in guest mode.
+  /// Signed-in API email, or null in guest mode.
   Future<String?> email() async {
     final prefs = await AppPrefs.instance;
     final stored = prefs.getString(accountEmailKey)?.trim() ?? '';
@@ -58,7 +72,7 @@ class AuthSession {
     return null;
   }
 
-  // Email whose local financial data currently lives on this device.
+  /// Email whose local financial data currently lives on this device.
   Future<String?> dataOwnerEmail() async {
     final prefs = await AppPrefs.instance;
     final stored = prefs.getString(dataOwnerKey)?.trim() ?? '';
@@ -66,30 +80,34 @@ class AuthSession {
     return null;
   }
 
+  /// The stored JWT, moving an old prefs copy into secure storage first.
   Future<String?> token() async {
     await _migrateLegacyToken();
     final value = (await _secure.read(key: tokenKey))?.trim() ?? '';
     return value.isEmpty ? null : value;
   }
 
+  /// Server time of the last successful sync, or null before the first.
   Future<DateTime?> lastSyncAt() async {
     final prefs = await AppPrefs.instance;
     return DateTime.tryParse(prefs.getString(lastSyncKey) ?? '')?.toUtc();
   }
 
+  /// Stores the server time of a successful sync.
   Future<void> saveLastSyncAt(DateTime value) async {
     final prefs = await AppPrefs.instance;
     await prefs.setString(lastSyncKey, value.toUtc().toIso8601String());
   }
 
+  /// Forgets the JWT.
   Future<void> clearToken() async {
     await _secure.delete(key: tokenKey);
     final prefs = await AppPrefs.instance;
     await prefs.remove(tokenKey);
   }
 
-  // Drop the API session and data key; local financial data and the
-  // data-owner stamp stay.
+  /// Drop the API session and data key; local financial data and the
+  /// data-owner stamp stay.
   Future<void> clearSession() async {
     await clearToken();
     await DataKeyStore.instance.clear();
@@ -99,14 +117,15 @@ class AuthSession {
     await prefs.remove(legacyPasswordKey);
   }
 
+  /// Forgets whose data is on the device (after a wipe).
   Future<void> clearDataOwner() async {
     final prefs = await AppPrefs.instance;
     await prefs.remove(dataOwnerKey);
   }
 
-  // Return a live JWT, or null for guests / dead tokens. Never auto-registers.
-  // Only a 401 ends the session; a timeout, 429 or server error keeps the
-  // token so a slow or busy server does not sign the user out.
+  /// Return a live JWT, or null for guests / dead tokens. Never auto-registers.
+  /// Only a 401 ends the session; a timeout, 429 or server error keeps the
+  /// token so a slow or busy server does not sign the user out.
   Future<String?> ensureToken() async {
     final existing = await token();
     if (existing == null) return null;
@@ -125,19 +144,15 @@ class AuthSession {
     return existing;
   }
 
-  Future<AuthResult> login({
-    required String email,
-    required String password,
-  }) {
+  /// Signs in with email and password.
+  Future<AuthResult> login({required String email, required String password}) {
     return _authenticate(
       path: '/auth/login',
-      body: {
-        'email': email.trim().toLowerCase(),
-        'password': password,
-      },
+      body: {'email': email.trim().toLowerCase(), 'password': password},
     );
   }
 
+  /// Creates an account with the sign-up [profile].
   Future<AuthResult> register({
     required String email,
     required String password,
@@ -153,11 +168,12 @@ class AuthSession {
     );
   }
 
-  // POST login or register, store the token, and bind the account locally.
+  /// POST login or register, store the token, and bind the account locally.
   Future<AuthResult> _authenticate({
     required String path,
     required Map<String, dynamic> body,
   }) async {
+    // Nothing to send without an email and a password.
     final address = body['email']?.toString() ?? '';
     final password = body['password']?.toString() ?? '';
     if (!_looksLikeEmail(address) || password.isEmpty) {
@@ -165,6 +181,7 @@ class AuthSession {
     }
 
     try {
+      // Log in or register; the reply carries the access token.
       final base = await ApiConfig.baseUrl();
       final response = await http
           .post(
@@ -182,7 +199,9 @@ class AuthSession {
       }
 
       if (response.statusCode != 200) {
-        return AuthResult.failure(describeAuthError(response.statusCode, decoded));
+        return AuthResult.failure(
+          describeAuthError(response.statusCode, decoded),
+        );
       }
 
       if (decoded is! Map) {
@@ -193,6 +212,8 @@ class AuthSession {
         return const AuthResult.failure('تعذّر الاتصال بالخادم. حاول مرة أخرى');
       }
 
+      // Read the account, then open (or create) its data key with the
+      // password, so synced text can be sealed.
       var me = await _fetchMe(access);
       if (me == null) {
         return const AuthResult.failure('تعذّر الاتصال بالخادم. حاول مرة أخرى');
@@ -206,6 +227,7 @@ class AuthSession {
       me = dataKey.me;
       final resolvedEmail = (me['email']?.toString() ?? address).toLowerCase();
 
+      // Only now is anything stored on the device.
       await _bindAccount(
         email: resolvedEmail,
         token: access,
@@ -220,7 +242,7 @@ class AuthSession {
     }
   }
 
-  // Attach token + email; wipe local data when adopting a different owner.
+  /// Attach token + email; wipe local data when adopting a different owner.
   Future<void> _bindAccount({
     required String email,
     required String token,
@@ -251,7 +273,7 @@ class AuthSession {
     }
   }
 
-  // Email a reset code. The server answers the same for unknown emails.
+  /// Email a reset code. The server answers the same for unknown emails.
   Future<AuthResult> requestPasswordReset(String email) async {
     final address = email.trim().toLowerCase();
     if (!_looksLikeEmail(address)) {
@@ -261,9 +283,7 @@ class AuthSession {
     if (status == 200) return const AuthResult.success();
     if (status == 429) return const AuthResult.failure(tooManyAttemptsMessage);
     if (status == 503) {
-      return const AuthResult.failure(
-        'تعذّر إرسال البريد الآن. حاول لاحقاً',
-      );
+      return const AuthResult.failure('تعذّر إرسال البريد الآن. حاول لاحقاً');
     }
     if (status == null) {
       return const AuthResult.failure(
@@ -273,8 +293,8 @@ class AuthSession {
     return const AuthResult.failure('أدخل بريداً إلكترونياً صالحاً');
   }
 
-  // Set a new password with the emailed code. The old data key cannot be
-  // opened without the old password, so the next sign-in makes a new one.
+  /// Set a new password with the emailed code. The old data key cannot be
+  /// opened without the old password, so the next sign-in makes a new one.
   Future<AuthResult> resetPassword({
     required String email,
     required String code,
@@ -299,11 +319,12 @@ class AuthSession {
     return const AuthResult.failure('الرمز غير صحيح أو انتهت صلاحيته');
   }
 
-  // Re-wrap the same data key with the new password, so nothing is lost.
+  /// Re-wrap the same data key with the new password, so nothing is lost.
   Future<AuthResult> changePassword({
     required String currentPassword,
     required String newPassword,
   }) async {
+    // The change needs a live session and the current account.
     final token = await ensureToken();
     if (token == null) {
       return const AuthResult.failure('انتهت الجلسة. سجّل الدخول مجدداً');
@@ -315,6 +336,7 @@ class AuthSession {
       );
     }
 
+    // Open the data key with the old password and wrap it with the new one.
     List<int>? key;
     WrappedDataKey? rewrapped;
     final wrapped = WrappedDataKey.fromJson(me['data_key']);
@@ -327,6 +349,7 @@ class AuthSession {
     }
 
     try {
+      // Send both passwords and the re-wrapped key in one request.
       final base = await ApiConfig.baseUrl();
       final response = await http
           .post(
@@ -349,13 +372,12 @@ class AuthSession {
         return const AuthResult.failure(tooManyAttemptsMessage);
       }
       if (response.statusCode != 200) {
-        return const AuthResult.failure(
-          'تعذّر تغيير كلمة المرور. حاول لاحقاً',
-        );
+        return const AuthResult.failure('تعذّر تغيير كلمة المرور. حاول لاحقاً');
       }
       final decoded = jsonDecode(response.body);
-      final access =
-          decoded is Map ? decoded['access_token']?.toString() ?? '' : '';
+      final access = decoded is Map
+          ? decoded['access_token']?.toString() ?? ''
+          : '';
       if (access.isEmpty) {
         return const AuthResult.failure('تعذّر الاتصال بالخادم. حاول مرة أخرى');
       }
@@ -370,7 +392,7 @@ class AuthSession {
     }
   }
 
-  // POST JSON without a token. Returns the status, or null when offline.
+  /// POST JSON without a token. Returns the status, or null when offline.
   Future<int?> _postJson(String path, Map<String, dynamic> body) async {
     try {
       final base = await ApiConfig.baseUrl();
@@ -387,8 +409,8 @@ class AuthSession {
     }
   }
 
-  // Delete the account and all its synced data on the server. Local data
-  // is left for the caller to clear.
+  /// Delete the account and all its synced data on the server. Local data
+  /// is left for the caller to clear.
   Future<AuthResult> deleteRemoteAccount() async {
     final token = await ensureToken();
     if (token == null) {
@@ -506,7 +528,7 @@ class AuthSession {
     return (await _getMe(token)).me;
   }
 
-  // GET /auth/me. status is null when the request never got an answer.
+  /// GET /auth/me. status is null when the request never got an answer.
   Future<({int? status, Map<String, dynamic>? me})> _getMe(String token) async {
     try {
       final base = await ApiConfig.baseUrl();

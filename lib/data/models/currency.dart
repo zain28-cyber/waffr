@@ -1,13 +1,20 @@
 // Fixed currency catalog and helpers; SYP is always the app default.
 
+/// The app's default currency; always enabled.
 const String defaultCurrencyCode = 'SYP';
 
-// One entry in the catalog: ISO code, Arabic name, and display symbol.
+/// One entry in the catalog: ISO code, Arabic name, and display symbol.
 class CurrencyInfo {
+  /// ISO 4217 code ("USD").
   final String code;
+
+  /// Arabic name ("دولار أمريكي").
   final String arabicName;
+
+  /// Symbol shown after amounts ("\$").
   final String symbol;
 
+  /// A catalog entry.
   const CurrencyInfo({
     required this.code,
     required this.arabicName,
@@ -15,16 +22,18 @@ class CurrencyInfo {
   });
 }
 
-// Lookup + normalize against the built-in list (SYP plus common FX codes).
+/// Lookup + normalize against the built-in list (SYP plus common FX codes).
 class Currencies {
   Currencies._();
 
+  /// The Syrian pound.
   static const CurrencyInfo syp = CurrencyInfo(
     code: defaultCurrencyCode,
     arabicName: 'ليرة سورية',
     symbol: 'ل.س',
   );
 
+  /// Every currency the app offers, SYP first.
   static const List<CurrencyInfo> catalog = [
     syp,
     CurrencyInfo(code: 'USD', arabicName: 'دولار أمريكي', symbol: '\$'),
@@ -53,7 +62,7 @@ class Currencies {
     for (final item in catalog) item.code: item,
   };
 
-  // Known code → catalog row; unknown codes still get a placeholder CurrencyInfo.
+  /// Known code → catalog row; unknown codes still get a placeholder CurrencyInfo.
   static CurrencyInfo of(String code) {
     return _byCode[normalize(code)] ??
         CurrencyInfo(
@@ -63,13 +72,15 @@ class Currencies {
         );
   }
 
+  /// True when [code] is in the [catalog].
   static bool isKnown(String code) => _byCode.containsKey(normalize(code));
 
-  // Uppercases and falls back to SYP when blank.
+  /// Uppercases and falls back to SYP when blank.
   static String normalize(String? raw) {
     final code = (raw ?? '').trim().toUpperCase();
     return code.isEmpty ? defaultCurrencyCode : code;
   }
 
+  /// The symbol of [code] (SYP when null).
   static String symbolOf(String? code) => of(normalize(code)).symbol;
 }

@@ -1,25 +1,30 @@
+// App-lock screen: asks for device authentication before the app opens.
+
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:waffr/widgets/button/app_primary_button.dart';
-import 'package:waffr/core/theme/app_color.dart';
+import 'package:waffr/core/theme/app_palette.dart';
 
-// Blocks the app until device auth (biometrics or PIN) succeeds.
-
+/// Blocks the app until device auth (biometrics or PIN) succeeds. Shown by
+/// `main.dart` over the hidden shell while the app lock is on.
 class LockScreen extends StatefulWidget {
+  /// Called once device auth succeeds (or the device has no auth support).
   final VoidCallback onAuthenticated;
 
-  const LockScreen({
-    super.key,
-    required this.onAuthenticated,
-  });
+  /// Creates a [LockScreen].
+  const LockScreen({super.key, required this.onAuthenticated});
 
   @override
   State<LockScreen> createState() => _LockScreenState();
 }
 
+/// State of [LockScreen]. Prompts automatically after the first frame and
+/// again on each tap of the unlock button.
 class _LockScreenState extends State<LockScreen> {
   final LocalAuthentication _auth = LocalAuthentication();
 
+  /// A system prompt is open (or just closed); drops repeat taps and shows
+  /// the button's busy state.
   bool _loading = false;
 
   @override
@@ -31,7 +36,7 @@ class _LockScreenState extends State<LockScreen> {
     });
   }
 
-  // Prompts local_auth; unsupported devices skip straight through.
+  /// Prompts local_auth; unsupported devices skip straight through.
   Future<void> _authenticate() async {
     if (_loading) return;
 
@@ -63,9 +68,7 @@ class _LockScreenState extends State<LockScreen> {
     } finally {
       if (mounted) {
         // Brief pause so Android can dismiss the system auth UI first.
-        await Future.delayed(
-          const Duration(milliseconds: 300),
-        );
+        await Future.delayed(const Duration(milliseconds: 300));
 
         if (mounted) {
           setState(() {
@@ -78,32 +81,22 @@ class _LockScreenState extends State<LockScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark =
-        Theme.of(context).brightness == Brightness.dark;
+    final palette = AppPalette.of(context);
 
-    final bg = isDark
-        ? AppColors.darkBackground
-        : AppColors.lightBackground;
+    final bg = palette.background;
 
-    final textPrimary = isDark
-        ? AppColors.darkTextPrimary
-        : AppColors.lightTextPrimary;
+    final textPrimary = palette.textPrimary;
 
-    final accent = isDark
-        ? AppColors.darkAccent
-        : AppColors.lightAccent;
+    final accent = palette.accent;
 
     return Scaffold(
       backgroundColor: bg,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          // Lock icon, title, hint, then the unlock button.
           children: [
-            Icon(
-              Icons.lock_rounded,
-              size: 70,
-              color: accent,
-            ),
+            Icon(Icons.lock_rounded, size: 70, color: accent),
 
             const SizedBox(height: 25),
 
@@ -113,7 +106,8 @@ class _LockScreenState extends State<LockScreen> {
                 color: textPrimary,
                 fontSize: 26,
                 fontWeight: FontWeight.bold,
-                fontFamily: 'Outfit', fontFamilyFallback: ['Tajawal'],
+                fontFamily: 'Outfit',
+                fontFamilyFallback: ['Tajawal'],
               ),
             ),
 
@@ -124,7 +118,8 @@ class _LockScreenState extends State<LockScreen> {
               style: TextStyle(
                 color: textPrimary.withValues(alpha: 0.6),
                 fontSize: 14,
-                fontFamily: 'Outfit', fontFamilyFallback: ['Tajawal'],
+                fontFamily: 'Outfit',
+                fontFamilyFallback: ['Tajawal'],
               ),
             ),
 

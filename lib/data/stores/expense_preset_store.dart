@@ -7,22 +7,27 @@ import 'package:waffr/core/sync/sync_merge.dart';
 import 'package:waffr/core/sync/sync_tombstones.dart';
 import 'package:waffr/data/models/expense_preset.dart';
 
+/// Saved expenses: prefs storage, sync merge and tombstones on delete.
 class ExpensePresetStore extends ChangeNotifier {
   ExpensePresetStore._();
 
+  /// The app-wide preset store.
   static final ExpensePresetStore instance = ExpensePresetStore._();
 
+  /// Prefs key of the presets (one JSON string each).
   static const String itemsKey = 'expense_presets';
 
   final List<ExpensePreset> _items = [];
   Future<void>? _loader;
   bool _loaded = false;
 
+  /// True once loaded from prefs.
   bool get isLoaded => _loaded;
 
   /// Newest first.
   List<ExpensePreset> get items => List.unmodifiable(_items);
 
+  /// Loads from prefs once; later calls return the same future.
   Future<void> ensureLoaded() => _loader ??= _load();
 
   /// Saves [preset] unless one with the same details already exists.
@@ -38,6 +43,7 @@ class ExpensePresetStore extends ChangeNotifier {
     return preset;
   }
 
+  /// Deletes a preset and logs the delete for sync; false when not found.
   Future<bool> remove(String id) async {
     await ensureLoaded();
     final before = _items.length;
@@ -49,6 +55,7 @@ class ExpensePresetStore extends ChangeNotifier {
     return true;
   }
 
+  /// Merges the server's presets.
   Future<void> applyRemoteSync({
     required List<Map<String, dynamic>> upserts,
     required List<SyncTombstone> deletes,
@@ -73,6 +80,7 @@ class ExpensePresetStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Drops memory so the next [ensureLoaded] re-reads prefs (tests, wipes).
   void resetCache() {
     _items.clear();
     _loaded = false;

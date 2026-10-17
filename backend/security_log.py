@@ -33,6 +33,7 @@ def log_event(
     email: str | None = None,
     **fields,
 ) -> None:
+    """Log one security event as a JSON line, with the request's address."""
     record: dict = {"event": event}
     if request is not None:
         record["ip"] = client_ip(request.scope)

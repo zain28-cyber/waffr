@@ -1,3 +1,6 @@
+// Add-income bottom sheet: amount, frequency, what to do with the leftover
+// balance, and an optional source. Offers to review waiting obligations after.
+
 import 'package:flutter/material.dart';
 import 'package:waffr/data/models/transaction.dart';
 import 'package:waffr/data/stores/recurring_expense_store.dart';
@@ -9,8 +12,8 @@ import 'package:waffr/screens/offline/obligations/obligations_sheet.dart';
 import 'package:waffr/widgets/containers/glass_sheet.dart';
 import 'package:waffr/core/theme/app_motion.dart';
 
-// Glass bottom sheet for logging income (amount, frequency, leftover balance).
-
+/// Opens the add-income sheet. Saves through [TransactionStore.addIncome],
+/// then may offer the due-obligations sheet if bills await confirmation.
 Future<void> showAddIncomeSheet(BuildContext context) {
   return showGlassSheet<void>(
     context: context,
@@ -18,6 +21,7 @@ Future<void> showAddIncomeSheet(BuildContext context) {
   );
 }
 
+/// Form for a new income; see [showAddIncomeSheet].
 class _AddIncomeSheet extends StatefulWidget {
   const _AddIncomeSheet();
 
@@ -25,17 +29,22 @@ class _AddIncomeSheet extends StatefulWidget {
   State<_AddIncomeSheet> createState() => _AddIncomeSheetState();
 }
 
+/// State of [_AddIncomeSheet]. Owns the amount and source controllers.
 class _AddIncomeSheetState extends State<_AddIncomeSheet> {
+  // Frequency chip labels.
   static const String _freqNone = 'مرة واحدة';
   static const String _freqWeekly = 'أسبوعي';
   static const String _freqMonthly = 'شهري';
-  // Weekly income still works in the store; the chip is hidden for now.
+
+  /// Weekly income still works in the store; the chip is hidden for now.
   static const bool _weeklyIncomeChoiceEnabled = false;
+  // Frequency chips actually shown.
   static const List<String> _frequencyOptions = [
     if (_weeklyIncomeChoiceEnabled) _freqWeekly,
     _freqMonthly,
     _freqNone,
   ];
+  // Leftover-balance chip labels: keep it, or move it to savings.
   static const String _keepBalance = 'إبقاء الرصيد';
   static const String _moveBalance = 'نقل الرصيد للتوفير';
 
@@ -49,17 +58,21 @@ class _AddIncomeSheetState extends State<_AddIncomeSheet> {
   bool _saving = false;
   late String _currencyCode;
 
+  // Upper bound on a single income amount.
   static const double _maxAmount = 999999999;
 
+  /// Typed amount.
   double get _amount => parseAmount(_amountController.text);
 
+  /// Whether the amount is positive and within the limit.
   bool get _isValid => _amount > 0 && _amount <= _maxAmount;
 
+  /// Store frequency for the selected chip.
   RecurringFrequency get _frequency => switch (_frequencyLabel) {
-        _freqWeekly => RecurringFrequency.weekly,
-        _freqMonthly => RecurringFrequency.monthly,
-        _ => RecurringFrequency.none,
-      };
+    _freqWeekly => RecurringFrequency.weekly,
+    _freqMonthly => RecurringFrequency.monthly,
+    _ => RecurringFrequency.none,
+  };
 
   @override
   void initState() {
@@ -77,6 +90,8 @@ class _AddIncomeSheetState extends State<_AddIncomeSheet> {
     super.dispose();
   }
 
+  /// Saves the income, closes the sheet, then offers to review obligations
+  /// that still wait for confirmation in this currency.
   Future<void> _save() async {
     if (!_isValid || _saving) return;
 
@@ -96,11 +111,11 @@ class _AddIncomeSheetState extends State<_AddIncomeSheet> {
     // settle obligations that still wait for approval.
     final obligations = RecurringExpenseStore.instance;
     await obligations.releaseIncomeReminders(_currencyCode);
-    final waiting =
-        obligations.awaitingConfirmation(_currencyCode).isNotEmpty;
+    final waiting = obligations.awaitingConfirmation(_currencyCode).isNotEmpty;
 
     if (!mounted) return;
     AppHaptics.success();
+    // Pop first, then ask on the navigator's context (this sheet is gone).
     final navigator = Navigator.of(context);
     await navigator.maybePop();
     if (!waiting || !navigator.mounted) return;
@@ -108,8 +123,7 @@ class _AddIncomeSheetState extends State<_AddIncomeSheet> {
     final review = await showAppConfirmDialog(
       navigator.context,
       title: 'التزامات بانتظار تأكيدك',
-      message:
-          'أضفت دخلاً جديداً، ولديك التزامات لم تُخصم بعد. هل تريد مراجعتها الآن؟',
+      message: 'أضفت دخلاً جديداً، ولديك التزامات لم تُخصم بعد. هل تريد مراجعتها الآن؟',
       confirmLabel: 'مراجعة',
       cancelLabel: 'لاحقاً',
       kind: AppFeedbackKind.info,
@@ -121,6 +135,7 @@ class _AddIncomeSheetState extends State<_AddIncomeSheet> {
 
   @override
   Widget build(BuildContext context) {
+    // The leftover-balance choice only appears when there is something left.
     final hasBalance = _store.balanceFor(_currencyCode) > 0;
 
     return GlassSheetBody(
@@ -131,6 +146,7 @@ class _AddIncomeSheetState extends State<_AddIncomeSheet> {
           onNext: _isValid ? _save : null,
         ),
         const SizedBox(height: 18),
+        // Amount with currency and the max-amount hint.
         SheetAmountField(
           label: 'مبلغ الدخل',
           controller: _amountController,
@@ -141,6 +157,7 @@ class _AddIncomeSheetState extends State<_AddIncomeSheet> {
           onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 18),
+        // Frequency, then the leftover-balance choice when relevant.
         const SheetFieldLabel(text: 'نوع الدخل'),
         SheetChoiceChips(
           options: _frequencyOptions,
@@ -157,8 +174,7 @@ class _AddIncomeSheetState extends State<_AddIncomeSheet> {
                 text: 'الرصيد الحالي',
                 action: const SheetInfoButton(
                   title: 'الرصيد الحالي',
-                  message:
-                      'هذا هو المبلغ المتبقي لديك من الفترة السابقة. اختر ما تريد فعله به: نقله إلى التوفير، أو إبقاءه ضمن رصيدك الجديد.',
+                  message: 'هذا هو المبلغ المتبقي لديك من الفترة السابقة. اختر ما تريد فعله به: نقله إلى التوفير، أو إبقاءه ضمن رصيدك الجديد.',
                 ),
               ),
               SheetChoiceChips(
@@ -170,6 +186,7 @@ class _AddIncomeSheetState extends State<_AddIncomeSheet> {
           ),
         ),
         const SizedBox(height: 18),
+        // Optional source and the save button.
         const SheetFieldLabel(text: 'مصدر الدخل', optional: true),
         SheetTextField(
           controller: _sourceController,

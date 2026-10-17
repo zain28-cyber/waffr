@@ -1,3 +1,5 @@
+"""Savings goals and the transfers that move money into and out of them."""
+
 from datetime import datetime
 from decimal import Decimal
 
@@ -25,6 +27,8 @@ from database import (
 
 
 class SavingsGoal(ClientIdMixin, SoftDeleteMixin, TimestampMixin, Base):
+    """A savings target, optionally with a periodic deduction plan."""
+
     __tablename__ = "savings_goals"
     __table_args__ = (
         UniqueConstraint("user_id", "client_id", name="uq_savings_goals_user_client"),
@@ -106,6 +110,8 @@ class SavingsGoal(ClientIdMixin, SoftDeleteMixin, TimestampMixin, Base):
 
 
 class SavingsTransfer(ClientIdMixin, SoftDeleteMixin, CreatedAtMixin, Base):
+    """Money moved to savings (to_savings) or back (to_balance)."""
+
     __tablename__ = "savings_transfers"
     __table_args__ = (
         UniqueConstraint(

@@ -1,25 +1,38 @@
+// In-app notifications: the stored feed, mute, and the engine that turns
+// ledger changes into alerts.
+//
+// Parts: notification_rules.dart (one rule per alert kind) and
+// notification_snapshot.dart (the last-seen figures alerts compare
+// against). Grouping for the list lives in notification_time_group.dart,
+// re-exported here.
+
 import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:waffr/data/models/app_notification.dart';
-import 'package:waffr/data/models/calendar_period.dart';
-import 'package:waffr/data/models/expense_categories.dart';
-import 'package:waffr/data/models/recurring_expense.dart';
-import 'package:waffr/data/models/transaction.dart';
-import 'package:waffr/data/stores/transaction_store.dart';
+import 'package:waffr/core/insights/smart/arabic_text.dart';
+import 'package:waffr/core/insights/smart/smart_facts.dart';
+import 'package:waffr/core/prefs/app_prefs.dart';
 import 'package:waffr/core/sync/sync_clock.dart';
 import 'package:waffr/core/sync/sync_dirty.dart';
 import 'package:waffr/core/sync/sync_mapper.dart';
 import 'package:waffr/core/sync/sync_merge.dart';
 import 'package:waffr/core/sync/sync_tombstones.dart';
 import 'package:waffr/core/utils/money.dart';
-import 'package:waffr/core/prefs/app_prefs.dart';
+import 'package:waffr/data/models/app_notification.dart';
+import 'package:waffr/data/models/calendar_period.dart';
+import 'package:waffr/data/models/expense_categories.dart';
+import 'package:waffr/data/models/recurring_expense.dart';
+import 'package:waffr/data/models/transaction.dart';
+import 'package:waffr/data/services/smart_settings.dart';
 import 'package:waffr/data/services/system_notifications.dart';
 import 'package:waffr/data/services/usage_streak_service.dart';
-import 'package:waffr/core/insights/smart/arabic_text.dart';
-import 'package:waffr/core/insights/smart/smart_facts.dart';
-import 'package:waffr/data/services/smart_settings.dart';
+import 'package:waffr/data/stores/transaction_store.dart';
+
+export 'package:waffr/data/services/notification_time_group.dart';
+
+part 'notification_rules.dart';
+part 'notification_snapshot.dart';
 
 /// In-app notification engine for balance, spending, goals, savings, and periods.
 ///
@@ -35,33 +48,46 @@ import 'package:waffr/data/services/smart_settings.dart';
 class NotificationService extends ChangeNotifier {
   NotificationService._();
 
+  /// The app-wide service.
   static final NotificationService instance = NotificationService._();
 
   static const String _itemsKey = 'waffer_notifications';
+
   static const String _mutedKey = 'waffer_notifications_muted';
+
   static const String _eventKeysKey = 'waffer_notification_event_keys';
+
   static const String _snapshotKey = 'waffer_notification_snapshot';
 
   final List<AppNotification> _items = [];
+
   final Set<String> _eventKeys = {};
 
   _NotificationSnapshot _snapshot = _NotificationSnapshot.empty();
 
   Future<void>? _loader;
+
   bool _loaded = false;
+
   bool _muted = false;
+
   bool _listening = false;
+
   bool _evaluating = false;
 
+  /// True once loaded from prefs.
   bool get isLoaded => _loaded;
 
+  /// True when new alerts are not written to the feed.
   bool get isMuted => _muted;
 
-  int get unreadCount =>
-      _items.where((item) => !item.isRead).length;
+  /// Notifications not opened yet.
+  int get unreadCount => _items.where((item) => !item.isRead).length;
 
+  /// The feed, newest first.
   List<AppNotification> get notifications => List.unmodifiable(_items);
 
+  /// Loads from prefs once; later calls return the same future.
   Future<void> ensureLoaded() => _loader ??= _load();
 
   /// Subscribes to [TransactionStore] so each change schedules [evaluate].
@@ -165,6 +191,7 @@ class NotificationService extends ChangeNotifier {
     );
   }
 
+  /// Flips [isMuted].
   Future<void> toggleMuted() => setMuted(!_muted);
 
   /// Marks a single notification read and saves the list.
@@ -300,325 +327,6 @@ class NotificationService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Seeds snapshot from the store and pretends completed goals already notified.
-  void _applyBaseline(TransactionStore store) {
-    _snapshot = _NotificationSnapshot.fromStore(store);
-
-    for (final goal in store.goals) {
-      if (!goal.isCompleted) continue;
-      _eventKeys.add(_goalReachedKey(goal.id));
-      for (final percent in NotificationThresholds.goalPercents) {
-        _eventKeys.add(_goalProgressKey(goal.id, percent));
-      }
-    }
-  }
-
-  void _refreshSnapshot(TransactionStore store) {
-    _snapshot = _NotificationSnapshot.fromStore(store);
-  }
-
-  /// Fires when remaining balance drops through 30%, 20%, or 10%.
-  bool _evaluateBalance(TransactionStore store) {
-    if (store.maxBalance <= 0) return false;
-
-    final current = store.remainingRatio;
-    final previous = _snapshot.remainingRatio;
-    if (previous == null) return false;
-
-    final crossed = <int>[];
-    for (final percent in NotificationThresholds.remainingPercents) {
-      final threshold = percent / 100;
-      if (previous > threshold && current <= threshold) {
-        crossed.add(percent);
-      }
-    }
-    if (crossed.isEmpty) return false;
-
-    final percent = crossed.reduce((a, b) => a < b ? a : b);
-    final cycle = _incomeCycle(store);
-    final left = '${formatMoney(store.balance)} $currencyLabel';
-    final income = '${formatMoney(store.maxBalance)} $currencyLabel';
-    return _tryAdd(
-      type: NotificationType.balanceWarning,
-      title: percent <= 10 ? 'رصيدك على وشك النفاد' : 'بقي ربع رصيدك',
-      message: percent <= 10
-          ? 'بقي $left فقط من أصل $income.'
-          : 'المتاح الآن $left من أصل $income. راجع مصروفاتك حتى الدخل القادم.',
-      eventKey: 'balanceWarning:$percent:$cycle',
-      metadata: {
-        'percent': '$percent',
-        'cycle': cycle,
-      },
-    );
-  }
-
-  /// Smart alert: at the recent pace the balance runs out before the next
-  /// income. At most once a week per cycle, and only with enough history.
-  bool _evaluateForecast(TransactionStore store) {
-    if (!SmartSettings.instance.alerts || store.balance <= 0) return false;
-    final facts = SmartFacts(
-      now: deviceNow(),
-      currencySymbol: currencyLabel,
-      expenses: store.expenses,
-      incomes: store.incomes,
-      savingsTransfers: const [],
-      balance: store.balance,
-      maxBalance: store.maxBalance,
-      monthlyIncome: store.configuredMonthlyIncome,
-      incomeFrequency: store.preferredIncomeFrequency,
-      hasRecurringIncome: store.hasRecurringIncome,
-      savingsBalance: 0,
-      goals: const [],
-      completedGoals: 0,
-      obligations: const [],
-      pendingShopping: 0,
-      streakCount: 0,
-      usageStartedAt: null,
-    );
-    final untilIncome = facts.daysUntilIncome;
-    final runway = facts.runwayDays;
-    if (untilIncome == null || untilIncome < 3 || runway == null) return false;
-    if (facts.weeksOfHistory < 1 || facts.loggedLast30 < 5) return false;
-    final gap = (untilIncome - runway).ceil();
-    if (gap < 2) return false;
-
-    final dailyLimit = store.balance / untilIncome;
-    final cycle = _incomeCycle(store);
-    final week = CalendarPeriod.weeklyKey(facts.now);
-    return _tryAdd(
-      type: NotificationType.balanceWarning,
-      title: 'قد ينفد رصيدك قبل الدخل',
-      message: 'بوتيرتك الحالية سينفد رصيدك قبل الدخل القادم بنحو '
-          '${Ar.days.of(gap)}. حاول ألا تتجاوز '
-          '${formatMoney(dailyLimit)} $currencyLabel يومياً.',
-      eventKey: 'balanceForecast:$cycle:$week',
-      metadata: {'cycle': cycle, 'gapDays': '$gap'},
-    );
-  }
-
-  /// Fires when spending climbs through 50%, 70%, 80%, or 90% of max balance.
-  bool _evaluateSpending(TransactionStore store) {
-    if (store.maxBalance <= 0) return false;
-
-    final current = store.cycleSpent / store.maxBalance;
-    final previous = _snapshot.spentRatio;
-    if (previous == null) return false;
-
-    final crossed = <int>[];
-    for (final percent in NotificationThresholds.spendingPercents) {
-      final threshold = percent / 100;
-      if (previous < threshold && current >= threshold) {
-        crossed.add(percent);
-      }
-    }
-    if (crossed.isEmpty) return false;
-
-    final percent = crossed.reduce((a, b) => a > b ? a : b);
-    final cycle = _incomeCycle(store);
-    return _tryAdd(
-      type: NotificationType.highSpending,
-      title: 'صرفت \u2066$percent%\u2069 من رصيد الدورة',
-      message: 'صرفت ${formatMoney(store.cycleSpent)} من '
-          '${formatMoney(store.maxBalance)} $currencyLabel، '
-          'والمتاح الآن ${formatMoney(store.balance)} $currencyLabel.',
-      eventKey: 'highSpending:$percent:$cycle',
-      metadata: {
-        'percent': '$percent',
-        'cycle': cycle,
-      },
-    );
-  }
-
-  /// Goal reached at 100%, or progress at 25%/50%/75% crossings.
-  bool _evaluateGoals(TransactionStore store) {
-    var changed = false;
-
-    for (final goal in store.goals) {
-      final current = store.goalRatio(goal);
-      final previous = _snapshot.goalRatios[goal.id];
-
-      if (goal.isCompleted) {
-        changed |= _tryAdd(
-          type: NotificationType.goalReached,
-          title: 'اكتمل هدف ${Ar.quote(goal.name)}',
-          message: 'جمعت ${formatMoney(goal.targetAmount)} '
-              '${currencyLabelFor(goal.currencyCode)} المطلوبة لهذا الهدف.',
-          eventKey: _goalReachedKey(goal.id),
-          relatedId: goal.id,
-          metadata: {
-            'goalName': goal.name,
-            'percent': '100',
-          },
-          createdAt: goal.completedAt,
-        );
-        continue;
-      }
-
-      if (previous == null) continue;
-
-      final crossed = <int>[];
-      for (final percent in NotificationThresholds.goalPercents) {
-        final threshold = percent / 100;
-        if (previous < threshold && current >= threshold) {
-          crossed.add(percent);
-        }
-      }
-      if (crossed.isEmpty) continue;
-
-      final percent = crossed.reduce((a, b) => a > b ? a : b);
-      final symbol = currencyLabelFor(goal.currencyCode);
-      changed |= _tryAdd(
-        type: NotificationType.goalProgress,
-        title: 'هدف ${Ar.quote(goal.name)}: \u2066$percent%\u2069',
-        message: 'وفّرت ${formatMoney(store.currentSaved(goal))} من '
-            '${formatMoney(goal.targetAmount)} $symbol.',
-        eventKey: _goalProgressKey(goal.id, percent),
-        relatedId: goal.id,
-        metadata: {
-          'goalName': goal.name,
-          'percent': '$percent',
-        },
-      );
-    }
-
-    return changed;
-  }
-
-  /// Notifies for new period-leftover or goal-periodic savings transfers.
-  bool _evaluateTransfers(TransactionStore store) {
-    var changed = false;
-
-    for (final item in store.savingsTransfers) {
-      if (!item.isSavingsIn) continue;
-      if (_snapshot.knownTransactionIds.contains(item.id)) continue;
-
-      final kind = item.transferKind;
-      if (kind != SavingsTransferKind.periodLeftover &&
-          kind != SavingsTransferKind.goalPeriodic) {
-        continue;
-      }
-
-      final periodLabel = _periodAdjective(item);
-      final goalName = _goalName(store, item.goalId);
-      final amount =
-          '${formatMoney(item.amount)} ${currencyLabelFor(item.currencyCode)}';
-      final weekly = periodLabel == 'الأسبوعية';
-
-      changed |= _tryAdd(
-        type: NotificationType.savingsTransferred,
-        title: 'أُضيف $amount إلى التوفير',
-        message: kind == SavingsTransferKind.goalPeriodic
-            ? 'الدفعة الدورية${goalName == null ? '' : ' لهدف $goalName'}.'
-            : 'المتبقي من دخل ${weekly ? 'الأسبوع' : 'الشهر'} الماضي'
-                '${goalName == null ? '' : '، ضمن هدف $goalName'}.',
-        eventKey: 'savingsTransfer:${item.id}',
-        relatedId: item.id,
-        metadata: {
-          'amount': '${item.amount}',
-          'periodType': kind == SavingsTransferKind.goalPeriodic
-              ? 'goalPeriodic'
-              : (item.processedPeriodKey?.startsWith('w:') == true
-                  ? 'weekly'
-                  : 'monthly'),
-          'periodKey': ?item.processedPeriodKey,
-          'goalName': ?goalName,
-        },
-        createdAt: item.dateTime,
-      );
-    }
-
-    return changed;
-  }
-
-  /// Period-completed alerts when leftover was processed without a transfer row.
-  bool _evaluatePeriods(TransactionStore store) {
-    var changed = false;
-
-    for (final token in store.processedPeriodTokens) {
-      if (!token.startsWith('leftover:')) continue;
-      if (_snapshot.knownProcessedTokens.contains(token)) continue;
-
-      final periodKey = token.substring('leftover:'.length);
-      if (periodKey.isEmpty) continue;
-
-      final alreadyTransferred = _items.any(
-        (item) =>
-            item.type == NotificationType.savingsTransferred &&
-            item.metadata['periodKey'] == periodKey,
-      );
-      if (alreadyTransferred) continue;
-
-      final hasTransfer = store.savingsTransfers.any(
-        (item) =>
-            item.isSavingsIn &&
-            item.transferKind == SavingsTransferKind.periodLeftover &&
-            item.processedPeriodKey == periodKey,
-      );
-      if (hasTransfer) continue;
-
-      final weekly = periodKey.contains('w:');
-      final span = weekly ? 'الأسبوع' : 'الشهر';
-      changed |= _tryAdd(
-        type: NotificationType.recurringPeriodCompleted,
-        title: 'انتهى $span دون توفير',
-        message: 'لم يتبقَّ من دخل $span الماضي مبلغ يُنقل إلى التوفير.',
-        eventKey: 'periodCompleted:$periodKey',
-        relatedId: periodKey,
-        metadata: {
-          'periodKey': periodKey,
-          'periodType': weekly ? 'weekly' : 'monthly',
-        },
-      );
-    }
-
-    return changed;
-  }
-
-  /// Flags expenses ≥ 2× the average of earlier ones (needs >4 expenses).
-  bool _evaluateLargeExpenses(TransactionStore store) {
-    final expenses = store.expenses;
-    if (expenses.length <= NotificationThresholds.minExpensesForLarge) {
-      return false;
-    }
-
-    var changed = false;
-    final chronological = [...expenses]
-      ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
-
-    for (var i = 0; i < chronological.length; i++) {
-      final expense = chronological[i];
-      if (_snapshot.knownTransactionIds.contains(expense.id)) continue;
-      if (i < NotificationThresholds.minExpensesForLarge) continue;
-      // Scheduled bills have their own notice and are expected amounts.
-      if (RecurringExpense.isRecurringSource(expense.sourceId)) continue;
-
-      final prior = chronological.sublist(0, i);
-      final average =
-          prior.fold<double>(0, (sum, item) => sum + item.amount) / prior.length;
-      if (average <= 0) continue;
-      if (expense.amount < average * NotificationThresholds.largeExpenseMultiplier) {
-        continue;
-      }
-
-      changed |= _tryAdd(
-        type: NotificationType.largeExpense,
-        title: 'مصروف أعلى من المعتاد',
-        message: '${formatMoney(expense.amount)} '
-            '${currencyLabelFor(expense.currencyCode)} على '
-            '${Ar.category(categoryFor(expense.category).label)}، أي ضعف متوسط مصروفاتك أو أكثر.',
-        eventKey: 'largeExpense:${expense.id}',
-        relatedId: expense.id,
-        metadata: {
-          'amount': '${expense.amount}',
-          'category': ?expense.category,
-        },
-        createdAt: expense.dateTime,
-      );
-    }
-
-    return changed;
-  }
-
   /// Dedupes by [eventKey]; when muted, keys are still claimed so events stay quiet.
   bool _tryAdd({
     required NotificationType type,
@@ -661,35 +369,6 @@ class NotificationService extends ChangeNotifier {
     _items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
 
-  String _incomeCycle(TransactionStore store) => 'cycle:${store.cycleKey}';
-
-  String _goalReachedKey(String goalId) => 'goalReached:$goalId';
-
-  String _goalProgressKey(String goalId, int percent) =>
-      'goalProgress:$goalId:$percent';
-
-  String? _goalName(TransactionStore store, String? goalId) {
-    if (goalId == null) return null;
-    for (final goal in store.goals) {
-      if (goal.id == goalId) return goal.name;
-    }
-    return null;
-  }
-
-  /// Arabic weekly/monthly adjective from period key or recurring frequency.
-  String? _periodAdjective(WaffrTransaction item) {
-    final key = item.processedPeriodKey;
-    if (key != null) {
-      if (key.startsWith('w:')) return 'الأسبوعية';
-      if (key.startsWith('m:')) return 'الشهرية';
-    }
-    return switch (item.frequency) {
-      RecurringFrequency.weekly => 'الأسبوعية',
-      RecurringFrequency.monthly => 'الشهرية',
-      RecurringFrequency.none => null,
-    };
-  }
-
   /// Writes items, event keys, mute, and snapshot; marks sync dirty.
   Future<void> _persist() async {
     final prefs = await AppPrefs.instance;
@@ -716,192 +395,5 @@ class NotificationService extends ChangeNotifier {
     final prefs = await AppPrefs.instance;
     await prefs.setStringList(_eventKeysKey, _eventKeys.toList());
     await prefs.setString(_snapshotKey, _snapshot.encode());
-  }
-}
-
-/// Last-seen balances, goal ratios, and known IDs used to detect crossings.
-class _NotificationSnapshot {
-  final bool initialized;
-  final double? remainingRatio;
-  final double? spentRatio;
-  final Map<String, double> goalRatios;
-  final Set<String> knownTransactionIds;
-  final Set<String> knownProcessedTokens;
-
-  const _NotificationSnapshot({
-    required this.initialized,
-    required this.remainingRatio,
-    required this.spentRatio,
-    required this.goalRatios,
-    required this.knownTransactionIds,
-    required this.knownProcessedTokens,
-  });
-
-  bool sameAs(_NotificationSnapshot other) {
-    if (identical(this, other)) return true;
-    if (initialized != other.initialized) return false;
-    if (remainingRatio != other.remainingRatio) return false;
-    if (spentRatio != other.spentRatio) return false;
-    if (goalRatios.length != other.goalRatios.length) return false;
-    if (knownTransactionIds.length != other.knownTransactionIds.length) {
-      return false;
-    }
-    if (knownProcessedTokens.length != other.knownProcessedTokens.length) {
-      return false;
-    }
-    for (final entry in goalRatios.entries) {
-      if (other.goalRatios[entry.key] != entry.value) return false;
-    }
-    return knownTransactionIds.containsAll(other.knownTransactionIds) &&
-        knownProcessedTokens.containsAll(other.knownProcessedTokens);
-  }
-
-  factory _NotificationSnapshot.empty() {
-    return const _NotificationSnapshot(
-      initialized: false,
-      remainingRatio: null,
-      spentRatio: null,
-      goalRatios: {},
-      knownTransactionIds: {},
-      knownProcessedTokens: {},
-    );
-  }
-
-  /// Builds a snapshot from the live [TransactionStore].
-  factory _NotificationSnapshot.fromStore(TransactionStore store) {
-    final spent =
-        store.maxBalance <= 0 ? 0.0 : store.cycleSpent / store.maxBalance;
-    return _NotificationSnapshot(
-      initialized: true,
-      remainingRatio: store.remainingRatio,
-      spentRatio: spent,
-      goalRatios: {
-        for (final goal in store.goals) goal.id: store.goalRatio(goal),
-      },
-      knownTransactionIds: {
-        for (final item in store.transactions) item.id,
-      },
-      knownProcessedTokens: Set<String>.of(store.processedPeriodTokens),
-    );
-  }
-
-  String encode() => jsonEncode({
-        'initialized': initialized,
-        'remainingRatio': remainingRatio,
-        'spentRatio': spentRatio,
-        'goalRatios': goalRatios,
-        'knownTransactionIds': knownTransactionIds.toList(),
-        'knownProcessedTokens': knownProcessedTokens.toList(),
-      });
-
-  /// Restores a snapshot from prefs JSON; empty on missing or corrupt input.
-  static _NotificationSnapshot decode(String? raw) {
-    if (raw == null || raw.isEmpty) {
-      return _NotificationSnapshot.empty();
-    }
-
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is! Map) return _NotificationSnapshot.empty();
-
-      final ratios = <String, double>{};
-      final rawRatios = decoded['goalRatios'];
-      if (rawRatios is Map) {
-        rawRatios.forEach((key, value) {
-          final amount = (value as num?)?.toDouble();
-          if (amount == null) return;
-          ratios[key.toString()] = amount;
-        });
-      }
-
-      return _NotificationSnapshot(
-        initialized: decoded['initialized'] == true,
-        remainingRatio: (decoded['remainingRatio'] as num?)?.toDouble(),
-        spentRatio: (decoded['spentRatio'] as num?)?.toDouble(),
-        goalRatios: ratios,
-        knownTransactionIds: {
-          for (final item in decoded['knownTransactionIds'] as List? ?? const [])
-            item.toString(),
-        },
-        knownProcessedTokens: {
-          for (final item in decoded['knownProcessedTokens'] as List? ?? const [])
-            item.toString(),
-        },
-      );
-    } catch (_) {
-      return _NotificationSnapshot.empty();
-    }
-  }
-}
-
-/// Groups notifications into today / yesterday / this week / month buckets.
-class NotificationTimeGroup {
-  final String label;
-  final List<AppNotification> items;
-
-  const NotificationTimeGroup({
-    required this.label,
-    required this.items,
-  });
-
-  /// Buckets by calendar day relative to [now] (Arabic section labels).
-  static List<NotificationTimeGroup> from(
-    List<AppNotification> notifications, {
-    DateTime? now,
-  }) {
-    if (notifications.isEmpty) return const [];
-
-    final moment = now ?? DateTime.now();
-    final today = DateTime(moment.year, moment.month, moment.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-    final weekStart = CalendarPeriod.weekStart(today);
-
-    final todayItems = <AppNotification>[];
-    final yesterdayItems = <AppNotification>[];
-    final weekItems = <AppNotification>[];
-    final older = <String, List<AppNotification>>{};
-
-    for (final item in notifications) {
-      final day = DateTime(
-        item.createdAt.year,
-        item.createdAt.month,
-        item.createdAt.day,
-      );
-
-      if (day == today) {
-        todayItems.add(item);
-      } else if (day == yesterday) {
-        yesterdayItems.add(item);
-      } else if (!day.isBefore(weekStart) && day.isBefore(yesterday)) {
-        weekItems.add(item);
-      } else {
-        final key = '${day.year}-${day.month.toString().padLeft(2, '0')}';
-        older.putIfAbsent(key, () => []).add(item);
-      }
-    }
-
-    final groups = <NotificationTimeGroup>[];
-    if (todayItems.isNotEmpty) {
-      groups.add(NotificationTimeGroup(label: 'اليوم', items: todayItems));
-    }
-    if (yesterdayItems.isNotEmpty) {
-      groups.add(NotificationTimeGroup(label: 'أمس', items: yesterdayItems));
-    }
-    if (weekItems.isNotEmpty) {
-      groups.add(NotificationTimeGroup(label: 'هذا الأسبوع', items: weekItems));
-    }
-
-    final monthKeys = older.keys.toList()..sort((a, b) => b.compareTo(a));
-    for (final key in monthKeys) {
-      final parts = key.split('-');
-      final year = int.parse(parts[0]);
-      final month = int.parse(parts[1]);
-      final label = year == today.year
-          ? CalendarPeriod.monthName(month)
-          : '${CalendarPeriod.monthName(month)} $year';
-      groups.add(NotificationTimeGroup(label: label, items: older[key]!));
-    }
-
-    return groups;
   }
 }

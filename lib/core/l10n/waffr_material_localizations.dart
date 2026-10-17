@@ -42,12 +42,14 @@ const Map<String, String> _levantineMonths = {
   'ديسمبر': 'كانون الأول',
 };
 
+// Western digits and Levantine month names in a formatted date.
 String _appDate(String input) {
   var text = westernDigits(input);
   _levantineMonths.forEach((from, to) => text = text.replaceAll(from, to));
   return text;
 }
 
+/// Arabic Material strings whose dates use 0-9 and Levantine month names.
 class WaffrMaterialLocalizations extends MaterialLocalizationAr {
   const WaffrMaterialLocalizations._({
     required super.fullYearFormat,
@@ -61,6 +63,7 @@ class WaffrMaterialLocalizations extends MaterialLocalizationAr {
     required super.twoDigitZeroPaddedFormat,
   });
 
+  /// Register before `GlobalMaterialLocalizations.delegate` in the app.
   static const LocalizationsDelegate<MaterialLocalizations> delegate =
       _WaffrMaterialLocalizationsDelegate();
 
@@ -73,6 +76,7 @@ class WaffrMaterialLocalizations extends MaterialLocalizationAr {
         .then((_) => _build());
   }
 
+  // The Arabic formats with native digits switched off.
   static MaterialLocalizations _build() {
     const name = 'ar';
     intl.DateFormat.useNativeDigitsByDefaultFor(name, false);
@@ -107,8 +111,7 @@ class WaffrMaterialLocalizations extends MaterialLocalizationAr {
       _appDate(super.formatMediumDate(date));
 
   @override
-  String formatFullDate(DateTime date) =>
-      _appDate(super.formatFullDate(date));
+  String formatFullDate(DateTime date) => _appDate(super.formatFullDate(date));
 
   @override
   String formatShortDate(DateTime date) =>
@@ -119,7 +122,8 @@ class WaffrMaterialLocalizations extends MaterialLocalizationAr {
       _appDate(super.formatShortMonthDay(date));
 
   @override
-  String formatDecimal(int number) => westernDigits(super.formatDecimal(number));
+  String formatDecimal(int number) =>
+      westernDigits(super.formatDecimal(number));
 
   // Same DD/MM/YYYY shape the app shows everywhere else.
   @override
@@ -135,6 +139,7 @@ class WaffrMaterialLocalizations extends MaterialLocalizationAr {
   String get dateHelpText => dateInputHint;
 }
 
+/// Loads [WaffrMaterialLocalizations] for Arabic locales only.
 class _WaffrMaterialLocalizationsDelegate
     extends LocalizationsDelegate<MaterialLocalizations> {
   const _WaffrMaterialLocalizationsDelegate();

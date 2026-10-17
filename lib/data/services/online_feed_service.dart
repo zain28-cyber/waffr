@@ -1,3 +1,5 @@
+// Data for the online tab: the exchange-rate rows and the news feed.
+
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -10,12 +12,13 @@ import 'package:waffr/core/sync/api_config.dart';
 class OnlineFeedService {
   OnlineFeedService._();
 
+  /// The app-wide service.
   static final OnlineFeedService instance = OnlineFeedService._();
 
   static const Duration _timeout = Duration(seconds: 25);
 
-  // Every catalog currency except SYP, plus 21k gold. Quotes are a minus
-  // until a live feed replaces these placeholders.
+  /// Every catalog currency except SYP, plus 21k gold. Quotes are a minus
+  /// until a live feed replaces these placeholders.
   static final List<ExchangeRate> rates = [
     for (final item in Currencies.catalog)
       if (item.code != defaultCurrencyCode)
@@ -31,6 +34,7 @@ class OnlineFeedService {
     ),
   ];
 
+  /// The rate row for [code] (must be one of [rates]).
   static ExchangeRate rateFor(String code) {
     return rates.firstWhere((rate) => rate.code == code);
   }

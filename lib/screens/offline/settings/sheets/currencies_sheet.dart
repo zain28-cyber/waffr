@@ -1,13 +1,15 @@
-// Pick the active currency or add/hide additional currencies.
+// Currencies sheet: pick the active currency, hide extra ones, or open the
+// stacked picker that adds a new one. Backed by CurrencyStore.
 
 import 'package:flutter/material.dart';
 import 'package:waffr/widgets/button/app_primary_button.dart';
 import 'package:waffr/widgets/containers/app_empty_state.dart';
 import 'package:waffr/data/stores/currency_store.dart';
-import 'package:waffr/core/theme/app_color.dart';
 import 'package:waffr/core/utils/app_feedback.dart';
 import 'package:waffr/widgets/containers/glass_sheet.dart';
+import 'package:waffr/core/theme/app_palette.dart';
 
+/// Opens the currencies sheet (from settings).
 Future<void> showCurrenciesSheet(BuildContext context) {
   return showGlassSheet<void>(
     context: context,
@@ -15,7 +17,8 @@ Future<void> showCurrenciesSheet(BuildContext context) {
   );
 }
 
-// Currencies list UI driven by CurrencyStore.
+/// Currencies list UI driven by CurrencyStore: enabled currencies, then an
+/// add button while more are available.
 class _CurrenciesSheet extends StatefulWidget {
   const _CurrenciesSheet();
 
@@ -23,6 +26,7 @@ class _CurrenciesSheet extends StatefulWidget {
   State<_CurrenciesSheet> createState() => _CurrenciesSheetState();
 }
 
+/// State of [_CurrenciesSheet]. Rebuilds from [CurrencyStore] changes.
 class _CurrenciesSheetState extends State<_CurrenciesSheet> {
   final CurrencyStore _store = CurrencyStore.instance;
 
@@ -32,7 +36,7 @@ class _CurrenciesSheetState extends State<_CurrenciesSheet> {
     _store.ensureLoaded();
   }
 
-  // Hides a non-default currency from the picker; its ledger stays intact.
+  /// Hides a non-default currency from the picker; its ledger stays intact.
   Future<void> _remove(CurrencyInfo item) async {
     if (item.code == defaultCurrencyCode) return;
 
@@ -50,12 +54,10 @@ class _CurrenciesSheetState extends State<_CurrenciesSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = isDark ? AppColors.darkAccent : AppColors.lightAccent;
-    final textPrimary =
-        isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final textSecondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final palette = AppPalette.of(context);
+    final accent = palette.accent;
+    final textPrimary = palette.textPrimary;
+    final textSecondary = palette.textSecondary;
 
     return AnimatedBuilder(
       animation: _store,
@@ -105,16 +107,16 @@ Future<void> showAddCurrencySheet(BuildContext context) {
   );
 }
 
+/// Lists the currencies not yet enabled; tapping one adds it and closes.
 class _AddCurrencySheet extends StatelessWidget {
   const _AddCurrencySheet();
 
   @override
   Widget build(BuildContext context) {
     final store = CurrencyStore.instance;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = isDark ? AppColors.darkAccent : AppColors.lightAccent;
-    final textPrimary =
-        isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
+    final palette = AppPalette.of(context);
+    final accent = palette.accent;
+    final textPrimary = palette.textPrimary;
 
     return AnimatedBuilder(
       animation: store,
@@ -192,7 +194,7 @@ class _AddCurrencySheet extends StatelessWidget {
   }
 }
 
-// One enabled currency with active highlight and optional hide action.
+/// One enabled currency with active highlight and optional hide action.
 class _CurrencyTile extends StatelessWidget {
   final CurrencyInfo item;
   final bool active;
@@ -237,7 +239,8 @@ class _CurrencyTile extends StatelessWidget {
                 child: Text(
                   item.symbol,
                   style: TextStyle(
-                    fontFamily: 'Outfit', fontFamilyFallback: ['Tajawal'],
+                    fontFamily: 'Outfit',
+                    fontFamilyFallback: ['Tajawal'],
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
                     color: accent,
@@ -252,7 +255,8 @@ class _CurrencyTile extends StatelessWidget {
                     Text(
                       item.arabicName,
                       style: TextStyle(
-                        fontFamily: 'Outfit', fontFamilyFallback: ['Tajawal'],
+                        fontFamily: 'Outfit',
+                        fontFamilyFallback: ['Tajawal'],
                         fontSize: 14.5,
                         fontWeight: FontWeight.w700,
                         color: textPrimary,
@@ -261,7 +265,8 @@ class _CurrencyTile extends StatelessWidget {
                     Text(
                       active ? '${item.code} · نشطة' : item.code,
                       style: TextStyle(
-                        fontFamily: 'Outfit', fontFamilyFallback: ['Tajawal'],
+                        fontFamily: 'Outfit',
+                        fontFamilyFallback: ['Tajawal'],
                         fontSize: 12,
                         color: active ? accent : textSecondary,
                       ),

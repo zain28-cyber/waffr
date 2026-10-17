@@ -1,138 +1,26 @@
 // Local shopping list; purchase completion creates expenses via TransactionStore.
 
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:waffr/data/models/expense_categories.dart';
+import 'package:waffr/data/models/shopping_item.dart';
 import 'package:waffr/data/stores/transaction_store.dart';
 import 'package:waffr/core/sync/sync_clock.dart';
 import 'package:waffr/core/sync/sync_dirty.dart';
-import 'package:waffr/core/sync/sync_mapper.dart';
 import 'package:waffr/core/sync/sync_merge.dart';
 import 'package:waffr/core/sync/sync_tombstones.dart';
 import 'package:waffr/core/prefs/app_prefs.dart';
 
-// One list row; [expenseId] links a purchased item to its ledger expense.
-class ShoppingItem {
-  final String id;
-  final String name;
-  final DateTime createdAt;
-  final bool isPurchased;
-  final DateTime? purchasedAt;
-  final String? expenseId;
-  final DateTime? updatedAt;
+export 'package:waffr/data/models/shopping_item.dart';
 
-  const ShoppingItem({
-    required this.id,
-    required this.name,
-    required this.createdAt,
-    this.isPurchased = false,
-    this.purchasedAt,
-    this.expenseId,
-    this.updatedAt,
-  });
-
-  DateTime get syncUpdatedAt => (updatedAt ?? createdAt).toUtc();
-
-  ShoppingItem copyWith({
-    String? name,
-    bool? isPurchased,
-    DateTime? purchasedAt,
-    String? expenseId,
-    DateTime? updatedAt,
-    bool clearPurchase = false,
-    bool touch = true,
-  }) {
-    return ShoppingItem(
-      id: id,
-      name: name ?? this.name,
-      createdAt: createdAt,
-      isPurchased: clearPurchase ? false : (isPurchased ?? this.isPurchased),
-      purchasedAt: clearPurchase ? null : (purchasedAt ?? this.purchasedAt),
-      expenseId: clearPurchase ? null : (expenseId ?? this.expenseId),
-      updatedAt: updatedAt ??
-          (touch ? DateTime.now().toUtc() : this.updatedAt),
-    );
-  }
-
-  Map<String, dynamic> toSyncJson() => {
-    'client_id': id,
-    'list_client_id': defaultShoppingListId,
-    'name': name,
-    'quantity': 1,
-    'price': null,
-    'is_purchased': isPurchased,
-    'purchased_at': purchasedAt == null ? null : toSyncIso(purchasedAt),
-    'expense_client_id': expenseId,
-    'created_at': toSyncIso(createdAt),
-    'updated_at': toSyncIso(syncUpdatedAt),
-  };
-
-  static ShoppingItem? fromSync(Map<String, dynamic> raw) {
-    final id = raw['client_id']?.toString().trim() ?? '';
-    final name = raw['name']?.toString().trim() ?? '';
-    final createdAt = parseEventLocal(raw['created_at'] ?? raw['createdAt']);
-    if (id.isEmpty || name.isEmpty || createdAt == null) return null;
-    return ShoppingItem(
-      id: id,
-      name: name,
-      createdAt: createdAt,
-      isPurchased: raw['is_purchased'] == true || raw['isPurchased'] == true,
-      purchasedAt: parseEventLocal(raw['purchased_at'] ?? raw['purchasedAt']),
-      expenseId: (raw['expense_client_id'] ?? raw['expenseId'])?.toString(),
-      updatedAt: parseSyncDate(raw['updated_at'] ?? raw['updatedAt']),
-    );
-  }
-
-  String encode() => jsonEncode(<String, dynamic>{
-    'id': id,
-    'name': name,
-    'createdAt': createdAt.toIso8601String(),
-    'isPurchased': isPurchased,
-    'purchasedAt': purchasedAt?.toIso8601String(),
-    'expenseId': expenseId,
-    'updatedAt': syncUpdatedAt.toIso8601String(),
-  });
-
-  static ShoppingItem? decode(String raw) {
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is! Map) return null;
-
-      final id = decoded['id']?.toString().trim() ?? '';
-      final name = decoded['name']?.toString().trim() ?? '';
-      final createdAt = DateTime.tryParse(
-        decoded['createdAt']?.toString() ?? '',
-      );
-
-      if (id.isEmpty || name.isEmpty || createdAt == null) {
-        return null;
-      }
-
-      return ShoppingItem(
-        id: id,
-        name: name,
-        createdAt: createdAt.toLocal(),
-        isPurchased: decoded['isPurchased'] == true,
-        purchasedAt: DateTime.tryParse(
-          decoded['purchasedAt']?.toString() ?? '',
-        )?.toLocal(),
-        expenseId: decoded['expenseId']?.toString(),
-        updatedAt: DateTime.tryParse(decoded['updatedAt']?.toString() ?? ''),
-      );
-    } catch (_) {
-      return null;
-    }
-  }
-}
-
-// Shopping list in prefs. Expenses are created through TransactionStore
-// so balance and history stay consistent.
+/// Shopping list in prefs. Expenses are created through TransactionStore
+/// so balance and history stay consistent.
 class ShoppingListStore extends ChangeNotifier {
   ShoppingListStore._();
 
+  /// The app-wide shopping list.
   static final ShoppingListStore instance = ShoppingListStore._();
 
+  /// Prefs key of the items (one JSON string each).
   static const String itemsKey = 'shopping_list_items';
 
   final List<ShoppingItem> _items = [];
@@ -140,12 +28,16 @@ class ShoppingListStore extends ChangeNotifier {
   Future<void>? _loader;
   bool _loaded = false;
 
+  /// True once loaded from prefs.
   bool get isLoaded => _loaded;
 
+  /// Every item, newest first.
   List<ShoppingItem> get items => List.unmodifiable(_items);
 
+  /// Loads from prefs once; later calls return the same future.
   Future<void> ensureLoaded() => _loader ??= _load();
 
+  /// Adds an item at the top; blank names are ignored.
   Future<void> addItem(String name) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return;
@@ -161,7 +53,7 @@ class ShoppingListStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  // New name only; a recorded purchase keeps its expense as it was.
+  /// New name only; a recorded purchase keeps its expense as it was.
   Future<bool> renameItem(String id, String name) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return false;
@@ -178,7 +70,7 @@ class ShoppingListStore extends ChangeNotifier {
     return true;
   }
 
-  // Removes one item. A recorded purchase stays in the expense history.
+  /// Removes one item. A recorded purchase stays in the expense history.
   Future<bool> removeItem(String id) async {
     await ensureLoaded();
 
@@ -192,6 +84,7 @@ class ShoppingListStore extends ChangeNotifier {
     return true;
   }
 
+  /// Removes every item, logging the deletes for sync.
   Future<void> clearAll() async {
     await ensureLoaded();
     if (_items.isEmpty) return;
@@ -205,7 +98,7 @@ class ShoppingListStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Marks purchased and posts an expense tagged with shopping:itemId.
+  /// Marks purchased and posts an expense tagged with shopping:itemId.
   Future<bool> completePurchase({
     required String itemId,
     required double amount,
@@ -249,7 +142,7 @@ class ShoppingListStore extends ChangeNotifier {
     return true;
   }
 
-  // Clears purchase state when the linked expense is undone.
+  /// Clears purchase state when the linked expense is undone.
   Future<void> revertPurchaseForExpense(String expenseId) async {
     await ensureLoaded();
 
@@ -261,6 +154,7 @@ class ShoppingListStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Merges the server's items.
   Future<void> applyRemoteSync({
     required List<Map<String, dynamic>> upserts,
     required List<SyncTombstone> deletes,
@@ -286,6 +180,7 @@ class ShoppingListStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Drops memory so the next [ensureLoaded] re-reads prefs (tests, wipes).
   void resetCache() {
     _items.clear();
     _loaded = false;

@@ -3,10 +3,16 @@ import 'package:flutter/material.dart';
 
 /// Person icon on an accent circle. There are no profile photos.
 class ProfileAvatar extends StatelessWidget {
+  /// Icon and tint color.
   final Color accent;
+
+  /// Circle radius; the icon is as large.
   final double radius;
+
+  /// False draws the crossed-out guest icon.
   final bool signedIn;
 
+  /// Creates a [ProfileAvatar].
   const ProfileAvatar({
     super.key,
     required this.accent,

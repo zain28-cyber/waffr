@@ -4,44 +4,97 @@ import 'dart:convert';
 
 import 'package:waffr/data/models/currency.dart';
 
-enum TransactionType { income, expense, savingsIn, savingsOut }
+/// The kind of money movement a ledger row records.
+enum TransactionType {
+  /// Money received.
+  income,
 
-// Income cadence: none means no automatic savings rollover for that entry.
-enum RecurringFrequency { none, weekly, monthly }
+  /// Money spent.
+  expense,
 
-// Why a savings transfer happened — auto leftover, goal plan, manual, or withdraw.
-enum SavingsTransferKind { periodLeftover, goalPeriodic, manual, withdraw }
+  /// Balance moved into savings.
+  savingsIn,
 
-// One ledger row: income, expense, or savings in/out, with optional period/goal links.
+  /// Savings moved back to the balance.
+  savingsOut,
+}
+
+/// Income cadence: none means no automatic savings rollover for that entry.
+enum RecurringFrequency {
+  /// A one-off income.
+  none,
+
+  /// Paid every week.
+  weekly,
+
+  /// Paid every month.
+  monthly,
+}
+
+/// Why a savings transfer happened.
+enum SavingsTransferKind {
+  /// The leftover of a finished income period, moved automatically.
+  periodLeftover,
+
+  /// A periodic plan's deduction for one period.
+  goalPeriodic,
+
+  /// The user moved money by hand.
+  manual,
+
+  /// The user took money back from savings.
+  withdraw,
+}
+
+/// One ledger row: income, expense, or savings in/out, with optional period/goal links.
 class WaffrTransaction {
+  /// Local id (also the sync client id).
   final String id;
+
+  /// What kind of movement this is.
   final TransactionType type;
+
+  /// Positive amount.
   final double amount;
 
+  /// Currency of the amount.
   final String currencyCode;
 
+  /// Expense category label.
   final String? category;
 
+  /// Cash or card, for expenses.
   final String? paymentMethod;
 
+  /// Optional note.
   final String? note;
 
+  /// Where an automatic expense came from (`recurring:…`, `shopping:…`),
+  /// so it is never posted twice.
   final String? sourceId;
 
+  /// When it happened, in the device zone.
   final DateTime dateTime;
 
+  /// Income cadence.
   final RecurringFrequency frequency;
 
+  /// Income period (`w:…` / `m:…`) of a recurring income.
   final String? periodKey;
 
+  /// Why a savings transfer happened.
   final SavingsTransferKind? transferKind;
 
+  /// Goal a savings transfer counts toward.
   final String? goalId;
 
+  /// Period an automatic transfer was made for.
   final String? processedPeriodKey;
 
+  /// Last change (UTC), for sync.
   final DateTime? updatedAt;
 
+  /// A ledger row.
   const WaffrTransaction({
     required this.id,
     required this.type,
@@ -60,8 +113,10 @@ class WaffrTransaction {
     this.updatedAt,
   });
 
+  /// Last change for sync, falling back to the event time.
   DateTime get syncUpdatedAt => (updatedAt ?? dateTime).toUtc();
 
+  /// A copy with a new event time or currency.
   WaffrTransaction copyWith({DateTime? dateTime, String? currencyCode}) {
     return WaffrTransaction(
       id: id,
@@ -82,14 +137,19 @@ class WaffrTransaction {
     );
   }
 
+  /// True for incomes.
   bool get isIncome => type == TransactionType.income;
 
+  /// True for expenses.
   bool get isExpense => type == TransactionType.expense;
 
+  /// True for moves into savings.
   bool get isSavingsIn => type == TransactionType.savingsIn;
 
+  /// True for moves out of savings.
   bool get isSavingsOut => type == TransactionType.savingsOut;
 
+  /// The prefs JSON shape.
   Map<String, dynamic> toJson() => {
     'id': id,
     'type': type.name,
@@ -108,9 +168,10 @@ class WaffrTransaction {
     'updatedAt': syncUpdatedAt.toIso8601String(),
   };
 
+  /// [toJson] as a string.
   String encode() => jsonEncode(toJson());
 
-  // Prefs decode; rejects non-positive amounts. Accepts legacy currency_code.
+  /// Prefs decode; rejects non-positive amounts. Accepts legacy currency_code.
   static WaffrTransaction? decode(String raw) {
     try {
       final decoded = jsonDecode(raw);
@@ -148,8 +209,10 @@ class WaffrTransaction {
 
   static int _seq = 0;
 
+  /// A fresh local id.
   static String newId() => '${DateTime.now().microsecondsSinceEpoch}_${_seq++}';
 
+  /// A stored type name; expense when unknown.
   static TransactionType _parseType(String? raw) {
     return switch (raw) {
       'income' => TransactionType.income,
@@ -159,9 +222,10 @@ class WaffrTransaction {
     };
   }
 
-  static RecurringFrequency frequencyFrom(String? raw) =>
-      _parseFrequency(raw);
+  /// Reads a stored or synced frequency name.
+  static RecurringFrequency frequencyFrom(String? raw) => _parseFrequency(raw);
 
+  /// Reads a stored or synced transfer kind name.
   static SavingsTransferKind? transferKindFrom(String? raw) =>
       _parseTransferKind(raw);
 
@@ -183,6 +247,7 @@ class WaffrTransaction {
     };
   }
 
+  /// Trimmed text, or null when blank.
   static String? _text(Object? value) {
     if (value == null) return null;
     final text = value.toString().trim();

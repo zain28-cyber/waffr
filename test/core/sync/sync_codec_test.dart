@@ -43,21 +43,22 @@ void main() {
   });
 
   group('encodeSyncRequest', () {
-    test('without known prints sends every row and seals private text',
-        () async {
-      final encoded = await encodeSyncRequest(
-        SyncRequestJob(payload: _request(), keyBytes: _key),
-      );
-      final body = jsonDecode(encoded.body) as Map;
-      final rows = body['transactions']['upserts'] as List;
-      expect(rows, hasLength(2));
-      expect(DataCipher.isSealed(rows[0]['note'] as String), isTrue);
-      expect(rows[0]['amount'], '10.0');
-      expect(encoded.sent['transactions']!.keys, containsAll(['t1', 't2']));
-    });
+    test(
+      'without known prints sends every row and seals private text',
+      () async {
+        final encoded = await encodeSyncRequest(
+          SyncRequestJob(payload: _request(), keyBytes: _key),
+        );
+        final body = jsonDecode(encoded.body) as Map;
+        final rows = body['transactions']['upserts'] as List;
+        expect(rows, hasLength(2));
+        expect(DataCipher.isSealed(rows[0]['note'] as String), isTrue);
+        expect(rows[0]['amount'], '10.0');
+        expect(encoded.sent['transactions']!.keys, containsAll(['t1', 't2']));
+      },
+    );
 
-    test('skips rows the server already has and keeps changed ones',
-        () async {
+    test('skips rows the server already has and keeps changed ones', () async {
       final first = await encodeSyncRequest(
         SyncRequestJob(payload: _request(), keyBytes: _key),
       );

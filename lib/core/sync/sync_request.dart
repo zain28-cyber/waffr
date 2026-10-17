@@ -87,7 +87,8 @@ Future<Map<String, dynamic>> buildSyncRequest({
 
   // Settings are one small object; send them whenever they may have changed.
   final settingsUpdated = await SyncDirty.settingsUpdatedAt();
-  final includeSettings = everyRow ||
+  final includeSettings =
+      everyRow ||
       lastSync == null ||
       (settingsUpdated != null && newerOrEqual(settingsUpdated, lastSync));
 
@@ -109,15 +110,9 @@ Future<Map<String, dynamic>> buildSyncRequest({
     'savings_transfers': section(transfers, SyncCollection.savingsTransfers),
     'shopping_lists': section(lists, SyncCollection.shoppingLists),
     'shopping_items': section(items, SyncCollection.shoppingItems),
-    'recurring_expenses': section(
-      recurring,
-      SyncCollection.recurringExpenses,
-    ),
+    'recurring_expenses': section(recurring, SyncCollection.recurringExpenses),
     'notifications': section(notifications, SyncCollection.notifications),
-    'expense_categories': section(
-      categories,
-      SyncCollection.expenseCategories,
-    ),
+    'expense_categories': section(categories, SyncCollection.expenseCategories),
     'expense_presets': section(presets, SyncCollection.expensePresets),
     'settings': includeSettings ? await syncSettingsPayload() : null,
   };
@@ -133,9 +128,7 @@ Future<Map<String, dynamic>> syncSettingsPayload() async {
     'monthly_income_amount': store.monthlyIncomeOverrideFor(
       defaultCurrencyCode,
     ),
-    'weekly_income_amount': store.weeklyIncomeOverrideFor(
-      defaultCurrencyCode,
-    ),
+    'weekly_income_amount': store.weeklyIncomeOverrideFor(defaultCurrencyCode),
     'income_overrides_by_currency': store.incomeOverridesByCurrencyPayload,
     'enabled_currencies': CurrencyStore.instance.enabledCodes,
     'active_currency': CurrencyStore.instance.activeCode,

@@ -29,10 +29,14 @@ SMTP_TIMEOUT_SECONDS = 20
 
 
 class EmailNotConfigured(Exception):
+    """The SMTP settings are missing."""
+
     pass
 
 
 class EmailSendFailed(Exception):
+    """The SMTP server could not be reached or refused the message."""
+
     pass
 
 
@@ -62,6 +66,7 @@ def check_code(user: User, code: str, now: datetime) -> bool:
 
 
 def clear_code(user: User) -> None:
+    """Forget the user's reset code."""
     user.reset_code_hash = None
     user.reset_code_expires_at = None
     user.reset_attempts = 0
@@ -122,6 +127,7 @@ def email_code(email: str) -> None:
 
 
 def email_configured() -> bool:
+    """True when every SMTP setting is present."""
     return all(
         os.getenv(name)
         for name in ("SMTP_HOST", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM")
@@ -129,6 +135,7 @@ def email_configured() -> bool:
 
 
 def send_code(to_address: str, code: str) -> None:
+    """Email [code] to [to_address] over SMTP."""
     if not email_configured():
         raise EmailNotConfigured()
 

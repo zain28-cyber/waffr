@@ -4,7 +4,22 @@ import 'package:flutter/material.dart';
 import 'package:waffr/core/theme/app_palette.dart';
 
 /// Which palette token tints the glass fill.
-enum GlassColorType { accent, background, surface, textPrimary, textSecondary }
+enum GlassColorType {
+  /// The brand accent.
+  accent,
+
+  /// The page background.
+  background,
+
+  /// The card surface.
+  surface,
+
+  /// The main text color.
+  textPrimary,
+
+  /// The secondary text color.
+  textSecondary,
+}
 
 /// Rounded translucent card with a liquid-glass sheen and rim and a soft
 /// shadow.
@@ -12,19 +27,34 @@ enum GlassColorType { accent, background, surface, textPrimary, textSecondary }
 /// Intentionally skips [BackdropFilter]: blurring whatever sits behind every
 /// card caused scroll jank. The look comes from a translucent palette fill.
 class GlassContainer extends StatelessWidget {
+  /// Card content.
   final Widget child;
+
+  /// Fixed width, if any.
   final double? width;
+
+  /// Fixed height, if any.
   final double? height;
+
+  /// Space inside the card.
   final EdgeInsetsGeometry padding;
+
+  /// Space outside the card.
   final EdgeInsetsGeometry margin;
+
+  /// Corner radius (all corners).
   final double borderRadius;
 
   /// Uneven corners when a circular [borderRadius] is not enough (e.g. sheets).
   final BorderRadius? radius;
 
+  /// Which theme color tints the glass.
   final GlassColorType colorType;
+
+  /// How strongly the glass is tinted, 0..1.
   final double tintOpacity;
 
+  /// Creates a [GlassContainer].
   const GlassContainer({
     super.key,
     required this.child,
@@ -135,10 +165,16 @@ LinearGradient liquidGlassFill(
 /// and fading toward the bottom, like light caught on the edge of glass.
 /// Pure gradients, no blur, so it costs about as much as a border.
 class LiquidGlassPainter extends CustomPainter {
+  /// Shape of the surface.
   final BorderRadius radius;
+
+  /// Dark-theme rim colors.
   final bool isDark;
+
+  /// A brighter rim for floating chrome.
   final bool strong;
 
+  /// Creates a [LiquidGlassPainter].
   const LiquidGlassPainter({
     required this.radius,
     required this.isDark,

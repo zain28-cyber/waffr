@@ -7,13 +7,17 @@ import 'package:waffr/core/sync/sync_dirty.dart';
 
 export 'package:waffr/data/models/currency.dart';
 
-// Enabled list + active code. Removing a currency never deletes its ledger rows.
+/// Enabled list + active code. Removing a currency never deletes its ledger rows.
 class CurrencyStore extends ChangeNotifier {
   CurrencyStore._();
 
+  /// The app-wide currency store.
   static final CurrencyStore instance = CurrencyStore._();
 
+  /// Prefs key of the enabled codes.
   static const String enabledKey = 'enabled_currencies';
+
+  /// Prefs key of the active code.
   static const String activeKey = 'active_currency';
 
   final List<String> _enabled = [defaultCurrencyCode];
@@ -22,24 +26,27 @@ class CurrencyStore extends ChangeNotifier {
   Future<void>? _loader;
   bool _loaded = false;
 
+  /// True once loaded from prefs.
   bool get isLoaded => _loaded;
 
+  /// The active currency code.
   String get activeCode => _activeCode;
 
+  /// The active currency.
   CurrencyInfo get active => Currencies.of(_activeCode);
 
+  /// Symbol of the active currency.
   String get activeSymbol => active.symbol;
 
-  // Currencies shown in the balance carousel and amount pickers.
+  /// Currencies shown in the balance carousel and amount pickers.
   List<CurrencyInfo> get enabledCurrencies {
-    return [
-      for (final code in _enabled) Currencies.of(code),
-    ];
+    return [for (final code in _enabled) Currencies.of(code)];
   }
 
+  /// Enabled codes, SYP first (for settings sync).
   List<String> get enabledCodes => List.unmodifiable(_enabled);
 
-  // Catalog entries not yet on the enabled list.
+  /// Catalog entries not yet on the enabled list.
   List<CurrencyInfo> get availableToAdd {
     return [
       for (final item in Currencies.catalog)
@@ -47,11 +54,13 @@ class CurrencyStore extends ChangeNotifier {
     ];
   }
 
+  /// True when [code] is on the enabled list.
   bool isEnabled(String code) => _enabled.contains(Currencies.normalize(code));
 
+  /// Loads from prefs once; later calls return the same future.
   Future<void> ensureLoaded() => _loader ??= _load();
 
-  // Switches the active currency if it is already enabled.
+  /// Switches the active currency if it is already enabled.
   Future<void> setActive(String code) async {
     await ensureLoaded();
 
@@ -69,11 +78,8 @@ class CurrencyStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Replaces the enabled list and active code from a newer account sync.
-  Future<void> applyRemote({
-    List<dynamic>? enabled,
-    String? active,
-  }) async {
+  /// Replaces the enabled list and active code from a newer account sync.
+  Future<void> applyRemote({List<dynamic>? enabled, String? active}) async {
     await ensureLoaded();
     if (enabled == null && (active == null || active.trim().isEmpty)) return;
 
@@ -94,11 +100,12 @@ class CurrencyStore extends ChangeNotifier {
     }
 
     final nextActive = Currencies.normalize(active ?? _activeCode);
-    _activeCode = _enabled.contains(nextActive) ? nextActive : defaultCurrencyCode;
+    _activeCode = _enabled.contains(nextActive)
+        ? nextActive
+        : defaultCurrencyCode;
     // A sync usually echoes what this device already has; then there is
     // nothing to save and no reason to rebuild every screen.
-    if (_activeCode == beforeActive &&
-        _sameOrder(_enabled, beforeEnabled)) {
+    if (_activeCode == beforeActive && _sameOrder(_enabled, beforeEnabled)) {
       return;
     }
     await _persistEnabled();
@@ -106,6 +113,7 @@ class CurrencyStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Makes the next enabled currency active (wraps around).
   Future<void> selectNext() async {
     await ensureLoaded();
     if (_enabled.length < 2) return;
@@ -115,17 +123,18 @@ class CurrencyStore extends ChangeNotifier {
     await setActive(_enabled[next]);
   }
 
+  /// Makes the previous enabled currency active (wraps around).
   Future<void> selectPrevious() async {
     await ensureLoaded();
     if (_enabled.length < 2) return;
 
     final index = _enabled.indexOf(_activeCode);
-    final previous = (index < 0 ? 0 : index - 1 + _enabled.length) %
-        _enabled.length;
+    final previous =
+        (index < 0 ? 0 : index - 1 + _enabled.length) % _enabled.length;
     await setActive(_enabled[previous]);
   }
 
-  // Adds a known non-SYP currency to the enabled list.
+  /// Adds a known non-SYP currency to the enabled list.
   Future<bool> addCurrency(String code) async {
     await ensureLoaded();
 
@@ -144,7 +153,7 @@ class CurrencyStore extends ChangeNotifier {
     return true;
   }
 
-  // Drops a currency from the carousel without wiping its transactions.
+  /// Drops a currency from the carousel without wiping its transactions.
   Future<bool> removeCurrency(String code) async {
     await ensureLoaded();
 
@@ -167,6 +176,7 @@ class CurrencyStore extends ChangeNotifier {
     return true;
   }
 
+  /// Drops memory so the next [ensureLoaded] re-reads prefs (tests, wipes).
   void resetCache() {
     _enabled
       ..clear()

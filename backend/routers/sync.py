@@ -1,3 +1,11 @@
+"""POST /sync: two-way sync of every collection and the settings object.
+
+The app pushes rows changed since its last sync and tombstones for rows it
+deleted; the reply holds every row changed on the server since
+``last_sync_at``, plus the full settings. Rows match by (user, client_id)
+and the newer ``updated_at`` wins. See backend/README.md for the rules.
+"""
+
 import logging
 import re
 from datetime import datetime
@@ -5,6 +13,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from auth import get_current_user
 from crud_utils import (
@@ -139,6 +148,10 @@ def _apply_settings(
         keys = set(row.processed_period_keys or [])
         keys.update(data.processed_period_keys or [])
         row.processed_period_keys = sorted(keys)
+        # Write the stored stamp back as it is. Otherwise the column's
+        # onupdate moves it to the server's clock whenever the keys or the
+        # streak changed, and a newer edit pushed later looks stale.
+        flag_modified(row, "updated_at")
         return
 
     if data.notifications_muted is not None:
@@ -509,11 +522,18 @@ def sync_changes(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Apply the pushed changes, then return what changed since last_sync_at.
+
+    Upserts run parent first (goals and lists before the rows that point at
+    them), then tombstones, then settings. Everything happens in one
+    transaction: a bad row rolls the whole push back.
+    """
     # Its rate limit runs in RateLimitMiddleware, before the body is read.
     user_id = current_user.id
     last_sync = as_utc(payload.last_sync_at)
 
     try:
+        # Upserts, parents first: goals and lists before the rows that point at them.
         for item in _parse_many(GoalSyncIn, payload.savings_goals.upserts):
             _apply_goal(db, user_id, item)
         for item in _parse_many(ShoppingListSyncIn, payload.shopping_lists.upserts):
@@ -533,6 +553,7 @@ def sync_changes(
         for item in _parse_many(PresetSyncIn, payload.expense_presets.upserts):
             _apply_preset(db, user_id, item)
 
+        # Tombstones, children first, so a list goes after its items.
         _apply_deletes(db, ShoppingItem, user_id, payload.shopping_items.deletes)
         _apply_deletes(db, SavingsTransfer, user_id, payload.savings_transfers.deletes)
         _apply_deletes(db, Transaction, user_id, payload.transactions.deletes)
@@ -543,6 +564,7 @@ def sync_changes(
         _apply_deletes(db, SavingsGoal, user_id, payload.savings_goals.deletes)
         _apply_deletes(db, ShoppingList, user_id, payload.shopping_lists.deletes)
 
+        # Settings: one row per user, created here if it is missing.
         settings, settings_created = _settings_row(db, current_user)
         if payload.settings is not None:
             _apply_settings(
@@ -552,6 +574,7 @@ def sync_changes(
                 created=settings_created,
             )
 
+        # Reply: every row changed since last_sync_at, live rows and tombstones apart.
         db.flush()
         server_time = utc_now()
 
@@ -569,6 +592,7 @@ def sync_changes(
             ]
             return _collection_out(live, deleted, serialize_live)
 
+        # Lookups that turn foreign keys back into client ids.
         goals = {row.id: row for row in db.query(SavingsGoal).filter(SavingsGoal.user_id == user_id).all()}
         lists = {row.id: row for row in db.query(ShoppingList).filter(ShoppingList.user_id == user_id).all()}
 

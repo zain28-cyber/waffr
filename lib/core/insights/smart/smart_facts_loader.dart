@@ -10,9 +10,12 @@ import 'package:waffr/data/stores/recurring_expense_store.dart';
 import 'package:waffr/data/stores/shopping_list_store.dart';
 import 'package:waffr/data/stores/transaction_store.dart';
 
+/// Builds [SmartFacts] from the live stores.
 class SmartFactsLoader {
   SmartFactsLoader._();
 
+  /// Loads every store the analysis reads, then snapshots the active
+  /// currency's figures.
   static Future<SmartFacts> load() async {
     final store = TransactionStore.instance;
     final recurring = RecurringExpenseStore.instance;
@@ -34,7 +37,6 @@ class SmartFactsLoader {
       incomes: store.incomes,
       savingsTransfers: store.savingsTransfers,
       balance: store.balance,
-      maxBalance: store.maxBalance,
       monthlyIncome: store.configuredMonthlyIncome,
       incomeFrequency: store.preferredIncomeFrequency,
       hasRecurringIncome: store.hasRecurringIncome,
@@ -61,18 +63,22 @@ class SmartFactsLoader {
     );
   }
 
+  // A goal preset as months (a week is a quarter month).
   static double _months(GoalDurationPreset preset) => switch (preset) {
-        GoalDurationPreset.week => 0.25,
-        GoalDurationPreset.month => 1,
-        GoalDurationPreset.threeMonths => 3,
-        GoalDurationPreset.sixMonths => 6,
-        GoalDurationPreset.year => 12,
-      };
+    GoalDurationPreset.week => 0.25,
+    GoalDurationPreset.month => 1,
+    GoalDurationPreset.threeMonths => 3,
+    GoalDurationPreset.sixMonths => 6,
+    GoalDurationPreset.year => 12,
+  };
 
+  // A recurring bill named by its note, else its category.
   static ObligationFact _obligation(RecurringExpense item) => ObligationFact(
-        name: item.note?.trim().isNotEmpty == true ? item.note!.trim() : item.category,
-        amount: item.amount,
-        monthlyEquivalent: item.monthlyEquivalent,
-        nextDueAt: item.nextDueAt,
-      );
+    name: item.note?.trim().isNotEmpty == true
+        ? item.note!.trim()
+        : item.category,
+    amount: item.amount,
+    monthlyEquivalent: item.monthlyEquivalent,
+    nextDueAt: item.nextDueAt,
+  );
 }

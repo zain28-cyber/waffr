@@ -1,3 +1,5 @@
+"""Custom expense categories the user adds next to the built-in ones."""
+
 from sqlalchemy import ForeignKey, Index, Integer, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -5,6 +7,8 @@ from database import Base, ClientIdMixin, SoftDeleteMixin, TimestampMixin
 
 
 class ExpenseCategory(ClientIdMixin, SoftDeleteMixin, TimestampMixin, Base):
+    """A category the user created, with its label and icon."""
+
     __tablename__ = "expense_categories"
     __table_args__ = (
         UniqueConstraint(

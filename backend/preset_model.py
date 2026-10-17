@@ -1,3 +1,5 @@
+"""Saved expenses the user can refill in one tap."""
+
 from decimal import Decimal
 
 from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text, UniqueConstraint

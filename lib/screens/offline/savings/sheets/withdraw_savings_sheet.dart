@@ -7,6 +7,7 @@ import 'package:waffr/core/utils/money.dart';
 import 'package:waffr/widgets/containers/glass_sheet.dart';
 import 'package:waffr/core/theme/app_motion.dart';
 
+/// Opens the sheet that moves an amount from savings back into the balance.
 Future<void> showWithdrawSavingsSheet(BuildContext context) {
   return showGlassSheet<void>(
     context: context,
@@ -14,7 +15,8 @@ Future<void> showWithdrawSavingsSheet(BuildContext context) {
   );
 }
 
-// Amount form that transfers from savings back to balance.
+/// Amount form that transfers from savings back to balance, capped at the
+/// savings held in the chosen currency.
 class _WithdrawSavingsSheet extends StatefulWidget {
   const _WithdrawSavingsSheet();
 
@@ -22,9 +24,13 @@ class _WithdrawSavingsSheet extends StatefulWidget {
   State<_WithdrawSavingsSheet> createState() => _WithdrawSavingsSheetState();
 }
 
+/// State of [_WithdrawSavingsSheet]. Owns the amount controller and the
+/// chosen currency.
 class _WithdrawSavingsSheetState extends State<_WithdrawSavingsSheet> {
   final TextEditingController _amountController = TextEditingController();
   final TransactionStore _store = TransactionStore.instance;
+
+  /// True while the transfer is in flight; blocks double submits.
   bool _saving = false;
   late String _currencyCode;
 
@@ -48,7 +54,8 @@ class _WithdrawSavingsSheetState extends State<_WithdrawSavingsSheet> {
     super.dispose();
   }
 
-  // Credits balance and debits savings for the entered amount.
+  /// Credits balance and debits savings for the entered amount, then closes
+  /// the sheet on success.
   Future<void> _save() async {
     if (!_isValid || _saving) return;
     setState(() => _saving = true);

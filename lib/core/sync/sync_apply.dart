@@ -108,10 +108,7 @@ Future<void> _clearAcknowledgedTombstones(
   final tombstones = SyncTombstones.instance;
   for (final entry in _collections.entries) {
     final returned = _deletes(body, entry.key).map((item) => item.clientId);
-    await tombstones.remove(entry.value, {
-      ...?sent[entry.key],
-      ...returned,
-    });
+    await tombstones.remove(entry.value, {...?sent[entry.key], ...returned});
   }
 }
 

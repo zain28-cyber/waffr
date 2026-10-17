@@ -5,6 +5,7 @@ import 'package:waffr/data/models/app_notification.dart';
 import 'package:waffr/data/services/notification_service.dart';
 import 'package:waffr/data/stores/currency_store.dart';
 import 'package:waffr/data/models/recurring_expense.dart';
+import 'package:waffr/data/models/transaction.dart';
 import 'package:waffr/data/stores/transaction_store.dart';
 import 'package:waffr/core/sync/sync_clock.dart';
 import 'package:waffr/core/sync/sync_dirty.dart';
@@ -15,12 +16,14 @@ import 'package:waffr/core/utils/money.dart';
 import 'package:waffr/core/prefs/app_prefs.dart';
 import 'package:waffr/core/insights/smart/arabic_text.dart';
 
-// Schedules checked on launch/resume; posts expenses when nextDueAt is past.
+/// Schedules checked on launch/resume; posts expenses when nextDueAt is past.
 class RecurringExpenseStore extends ChangeNotifier {
   RecurringExpenseStore._();
 
+  /// The app-wide schedule store.
   static final RecurringExpenseStore instance = RecurringExpenseStore._();
 
+  /// Prefs key of the schedules (one JSON string each).
   static const String itemsKey = 'recurring_expenses';
 
   static const int _maxCatchUp = 24;
@@ -31,10 +34,13 @@ class RecurringExpenseStore extends ChangeNotifier {
   bool _loaded = false;
   Future<void>? _dueTail;
 
+  /// True once loaded from prefs.
   bool get isLoaded => _loaded;
 
+  /// Every schedule, newest first.
   List<RecurringExpense> get items => List.unmodifiable(_items);
 
+  /// Schedules in [currencyCode], newest first.
   List<RecurringExpense> itemsFor(String currencyCode) {
     final code = Currencies.normalize(currencyCode);
     return _items
@@ -42,8 +48,10 @@ class RecurringExpenseStore extends ChangeNotifier {
         .toList(growable: false);
   }
 
+  /// Loads from prefs once; later calls return the same future.
   Future<void> ensureLoaded() => _loader ??= _load();
 
+  /// The schedule with [id], if any.
   RecurringExpense? byId(String id) {
     for (final item in _items) {
       if (item.id == id) return item;
@@ -51,7 +59,7 @@ class RecurringExpenseStore extends ChangeNotifier {
     return null;
   }
 
-  // With [requiresConfirmation] the first charge waits for the user's approval.
+  /// With [requiresConfirmation] the first charge waits for the user's approval.
   Future<void> addExpense({
     required double amount,
     required String category,
@@ -98,6 +106,7 @@ class RecurringExpenseStore extends ChangeNotifier {
 
   static const double _maxAmount = 999999999;
 
+  /// Changes a schedule's amount (and currency); false when invalid.
   Future<bool> updateAmount(
     String id,
     double amount, {
@@ -121,6 +130,7 @@ class RecurringExpenseStore extends ChangeNotifier {
     return true;
   }
 
+  /// Pauses or resumes a schedule.
   Future<void> setEnabled(String id, bool enabled) async {
     await ensureLoaded();
 
@@ -132,6 +142,8 @@ class RecurringExpenseStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Switches between automatic and approved charges; switching to
+  /// automatic posts what is due right away.
   Future<void> setRequiresConfirmation(String id, bool value) async {
     await ensureLoaded();
 
@@ -147,7 +159,7 @@ class RecurringExpenseStore extends ChangeNotifier {
     if (!value) await processDue();
   }
 
-  // Charges that wait for the user's approval, oldest schedule first.
+  /// Charges that wait for the user's approval, oldest schedule first.
   List<RecurringExpense> awaitingConfirmation(
     String currencyCode, {
     DateTime? now,
@@ -165,8 +177,8 @@ class RecurringExpenseStore extends ChangeNotifier {
     return list;
   }
 
-  // Charges not yet posted: approvals pending plus automatic ones held back
-  // by a low balance.
+  /// Charges not yet posted: approvals pending plus automatic ones held back
+  /// by a low balance.
   int overdueCount(String currencyCode, {DateTime? now}) {
     final moment = now ?? deviceNow();
     var count = 0;
@@ -177,7 +189,7 @@ class RecurringExpenseStore extends ChangeNotifier {
     return count;
   }
 
-  // Monthly cost of all active schedules in a currency.
+  /// Monthly cost of all active schedules in a currency.
   double monthlyTotal(String currencyCode) {
     var total = 0.0;
     for (final item in itemsFor(currencyCode)) {
@@ -186,7 +198,7 @@ class RecurringExpenseStore extends ChangeNotifier {
     return total;
   }
 
-  // Next charge date among active schedules in a currency.
+  /// Next charge date among active schedules in a currency.
   RecurringExpense? nextUpcoming(String currencyCode, {DateTime? now}) {
     final moment = now ?? deviceNow();
     RecurringExpense? next;
@@ -199,8 +211,8 @@ class RecurringExpenseStore extends ChangeNotifier {
     return next;
   }
 
-  // Posts the oldest pending charge, or every pending one with [all].
-  // Returns how many were posted; stops early when the balance runs out.
+  /// Posts the oldest pending charge, or every pending one with [all].
+  /// Returns how many were posted; stops early when the balance runs out.
   Future<int> confirmDue(String id, {bool all = false}) {
     final previous = _dueTail ?? Future<void>.value();
     final run = previous
@@ -219,6 +231,8 @@ class RecurringExpenseStore extends ChangeNotifier {
 
     final now = deviceNow();
     var item = _items[index];
+    // Post the oldest due charge (or all of them), stopping when the balance
+    // runs out; charges already in the history only move the schedule on.
     final dates = item.dueDates(now);
     final wanted = all ? dates : dates.take(1);
     var posted = 0;
@@ -230,27 +244,14 @@ class RecurringExpenseStore extends ChangeNotifier {
         if (!store.canDeduct(item.amount, currencyCode: item.currencyCode)) {
           break;
         }
-        final added = await store.addExpense(
-          amount: item.amount,
-          category: item.category,
-          paymentMethod: item.paymentMethod,
-          note: item.note ?? item.intervalDescription,
-          sourceId: sourceId,
-          occurredAt: dueAt.toLocal(),
-          currencyCode: item.currencyCode,
-        );
+        final added = await _postCharge(item, dueAt);
         if (added == null) break;
       }
       posted++;
-      item = item.copyWith(
-        nextDueAt: RecurringExpense.nextDueFrom(
-          dueAt,
-          item.unit,
-          item.intervalCount,
-        ),
-      );
+      item = _advancedPast(item, dueAt);
     }
 
+    // Nothing left due: any postponement is over.
     if (posted == 0) return 0;
 
     if (item.dueDates(now, max: 1).isEmpty) {
@@ -262,7 +263,7 @@ class RecurringExpenseStore extends ChangeNotifier {
     return posted;
   }
 
-  // Keeps the charge pending and reminds after [after], or on the next income.
+  /// Keeps the charge pending and reminds after [after], or on the next income.
   Future<void> postpone(
     String id, {
     Duration? after,
@@ -274,17 +275,19 @@ class RecurringExpenseStore extends ChangeNotifier {
     if (index < 0) return;
 
     _items[index] = untilIncome
-        ? _items[index].copyWith(clearReminder: true).copyWith(
-              remindOnIncome: true,
-            )
-        : _items[index].copyWith(clearReminder: true).copyWith(
-              remindAt: deviceNow().add(after ?? const Duration(days: 1)),
-            );
+        ? _items[index]
+              .copyWith(clearReminder: true)
+              .copyWith(remindOnIncome: true)
+        : _items[index]
+              .copyWith(clearReminder: true)
+              .copyWith(
+                remindAt: deviceNow().add(after ?? const Duration(days: 1)),
+              );
     await _persist();
     notifyListeners();
   }
 
-  // New income ends "remind me on next income" postponements in that currency.
+  /// New income ends "remind me on next income" postponements in that currency.
   Future<void> releaseIncomeReminders(String currencyCode) async {
     await ensureLoaded();
 
@@ -301,6 +304,8 @@ class RecurringExpenseStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Deletes a schedule and logs the delete for sync. Charges already
+  /// posted stay in the history.
   Future<void> deleteExpense(String id) async {
     await ensureLoaded();
 
@@ -313,8 +318,8 @@ class RecurringExpenseStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Deducts due items when balance allows; otherwise notifies and stops catch-up.
-  // Calls are queued so opening the app twice cannot post the same period twice.
+  /// Deducts due items when balance allows; otherwise notifies and stops catch-up.
+  /// Calls are queued so opening the app twice cannot post the same period twice.
   Future<void> processDue() {
     final previous = _dueTail ?? Future<void>.value();
     final run = previous.catchError((Object _) {}).then((_) => _processDue());
@@ -333,6 +338,7 @@ class RecurringExpenseStore extends ChangeNotifier {
       var item = _items[i];
       if (!item.enabled) continue;
 
+      // Charges that need approval are only reminded about, never posted.
       if (item.requiresConfirmation) {
         if (await _remindAwaiting(item, now)) {
           _items[i] = item.copyWith(clearReminder: true);
@@ -348,6 +354,8 @@ class RecurringExpenseStore extends ChangeNotifier {
         changed = true;
       }
 
+      // Post every missed charge in order (at most 24), saving after each, and
+      // stop at the first one the balance cannot cover.
       var catchUps = 0;
       DateTime? postedDue;
 
@@ -364,15 +372,7 @@ class RecurringExpenseStore extends ChangeNotifier {
           break;
         }
 
-        final added = await store.addExpense(
-          amount: item.amount,
-          category: item.category,
-          paymentMethod: item.paymentMethod,
-          note: item.note ?? item.intervalDescription,
-          sourceId: sourceId,
-          occurredAt: dueAt.toLocal(),
-          currencyCode: item.currencyCode,
-        );
+        final added = await _postCharge(item, dueAt);
 
         if (added == null) {
           await _notifyBlocked(item, dueAt);
@@ -380,18 +380,13 @@ class RecurringExpenseStore extends ChangeNotifier {
         }
 
         postedDue = dueAt;
-        item = item.copyWith(
-          nextDueAt: RecurringExpense.nextDueFrom(
-            dueAt,
-            item.unit,
-            item.intervalCount,
-          ),
-        );
+        item = _advancedPast(item, dueAt);
         _items[i] = item;
         changed = true;
         await _persist();
       }
 
+      // One notice per schedule for what was posted in this pass.
       if (postedDue != null) {
         await _notifyApplied(item, postedDue);
       }
@@ -402,6 +397,7 @@ class RecurringExpenseStore extends ChangeNotifier {
       notifyListeners();
     }
 
+    // Finally, warn about charges in the next two days the balance lacks.
     await _warnUpcomingShortfalls(now);
   }
 
@@ -444,7 +440,8 @@ class RecurringExpenseStore extends ChangeNotifier {
     if (remindAt != null && remindAt.isAfter(now)) return false;
 
     // The first charge of a schedule just added is shown on the home screen.
-    final justAdded = dates.length == 1 &&
+    final justAdded =
+        dates.length == 1 &&
         !_hasPosted(item.id) &&
         now.difference(item.createdAt).inMinutes < 5;
     if (!justAdded) {
@@ -468,6 +465,31 @@ class RecurringExpenseStore extends ChangeNotifier {
       }
     }
     return remindAt != null;
+  }
+
+  // Posts the charge of [item] due at [dueAt] as an expense dated then;
+  // null when the balance cannot cover it.
+  Future<WaffrTransaction?> _postCharge(RecurringExpense item, DateTime dueAt) {
+    return TransactionStore.instance.addExpense(
+      amount: item.amount,
+      category: item.category,
+      paymentMethod: item.paymentMethod,
+      note: item.note ?? item.intervalDescription,
+      sourceId: _sourceId(item.id, dueAt),
+      occurredAt: dueAt.toLocal(),
+      currencyCode: item.currencyCode,
+    );
+  }
+
+  // [item] with its next charge moved one step past [dueAt].
+  RecurringExpense _advancedPast(RecurringExpense item, DateTime dueAt) {
+    return item.copyWith(
+      nextDueAt: RecurringExpense.nextDueFrom(
+        dueAt,
+        item.unit,
+        item.intervalCount,
+      ),
+    );
   }
 
   bool _isDue(DateTime due, DateTime now) => !due.toUtc().isAfter(now.toUtc());
@@ -540,6 +562,7 @@ class RecurringExpenseStore extends ChangeNotifier {
     }
   }
 
+  /// Merges the server's schedules.
   Future<void> applyRemoteSync({
     required List<Map<String, dynamic>> upserts,
     required List<SyncTombstone> deletes,
@@ -565,6 +588,7 @@ class RecurringExpenseStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Drops memory so the next [ensureLoaded] re-reads prefs (tests, wipes).
   void resetCache() {
     _items.clear();
     _loaded = false;
@@ -578,7 +602,9 @@ class RecurringExpenseStore extends ChangeNotifier {
 
     _items
       ..clear()
-      ..addAll(stored.map(RecurringExpense.decode).whereType<RecurringExpense>())
+      ..addAll(
+        stored.map(RecurringExpense.decode).whereType<RecurringExpense>(),
+      )
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     _loaded = true;

@@ -76,9 +76,8 @@ class SyncDirty {
   /// When settings last changed on this device, or null if never.
   static Future<DateTime?> settingsUpdatedAt() async {
     final prefs = await AppPrefs.instance;
-    return DateTime.tryParse(
-      prefs.getString(settingsUpdatedAtKey) ?? '',
-    )?.toUtc();
+    return DateTime.tryParse(prefs.getString(settingsUpdatedAtKey) ?? '')
+        ?.toUtc();
   }
 
   /// Adopts the server's settings time after a newer remote copy is applied.

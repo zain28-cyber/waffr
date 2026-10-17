@@ -15,11 +15,18 @@ import 'package:waffr/core/theme/app_palette.dart';
 import 'package:waffr/core/theme/app_motion.dart';
 import 'package:waffr/widgets/brand/waffr_logo.dart';
 
+/// The streak celebration shown over the app on open.
 class StreakCelebrationOverlay extends StatefulWidget {
+  /// Streak before today.
   final int from;
+
+  /// Streak after today counted.
   final int to;
+
+  /// Called once when the sequence ends or is skipped.
   final VoidCallback onFinished;
 
+  /// Creates a [StreakCelebrationOverlay].
   const StreakCelebrationOverlay({
     super.key,
     required this.from,
@@ -32,6 +39,7 @@ class StreakCelebrationOverlay extends StatefulWidget {
       _StreakCelebrationOverlayState();
 }
 
+/// State of [StreakCelebrationOverlay].
 class _StreakCelebrationOverlayState extends State<StreakCelebrationOverlay>
     with SingleTickerProviderStateMixin {
   static const Duration _total = Duration(milliseconds: 3600);
@@ -198,8 +206,12 @@ class _StreakCelebrationOverlayState extends State<StreakCelebrationOverlay>
   }
 }
 
+/// Logo, rolling count and caption, positioned by the sequence values.
 class _CelebrationContent extends StatelessWidget {
+  /// Number before the roll.
   final int from;
+
+  /// Number after the roll.
   final int to;
   final double logoIn;
   final double logoFade;
@@ -289,11 +301,19 @@ class _CelebrationContent extends StatelessWidget {
 /// Odometer-style number: each digit that changes rolls up from the old
 /// value to the new one, with a slight tilt as it passes. [progress] is 0..1.
 class RollingNumber extends StatelessWidget {
+  /// Number before the roll.
   final int from;
+
+  /// Number after the roll.
   final int to;
+
+  /// Roll progress, 0..1.
   final double progress;
+
+  /// Digit style.
   final TextStyle style;
 
+  /// Creates a [RollingNumber].
   const RollingNumber({
     super.key,
     required this.from,
@@ -337,6 +357,7 @@ class RollingNumber extends StatelessWidget {
   }
 }
 
+/// One digit column of [RollingNumber].
 class _RollingDigit extends StatelessWidget {
   final String from;
   final String to;

@@ -1,3 +1,6 @@
+// Reports and savings: the period selector pinned under the shell header,
+// with the page scrolling beneath its glass.
+
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show listEquals;
@@ -11,11 +14,19 @@ import 'package:waffr/widgets/containers/floating_glass.dart';
 /// their glass. The sliver reserves their initial space without duplicating
 /// either the controls or the page's scrollable.
 class PinnedPeriodScrollView extends StatelessWidget {
+  /// Period names, in order.
   final List<String> options;
+
+  /// The selected option.
   final String selected;
+
+  /// Called with the tapped option.
   final ValueChanged<String> onSelected;
+
+  /// The page content under the selector.
   final Widget child;
 
+  /// Creates a [PinnedPeriodScrollView].
   const PinnedPeriodScrollView({
     super.key,
     required this.options,
@@ -52,6 +63,7 @@ class PinnedPeriodScrollView extends StatelessWidget {
   }
 }
 
+/// Sliver header that reserves the selector's height at the top.
 class _PeriodHeader extends SliverPersistentHeaderDelegate {
   final double extent;
   final Widget child;
@@ -79,10 +91,16 @@ class _PeriodHeader extends SliverPersistentHeaderDelegate {
 /// Wide layouts show every option; narrow/scaled layouts scroll horizontally
 /// rather than truncating the period names or shrinking accessibility text.
 class FloatingPeriodSelector extends StatefulWidget {
+  /// Period names, in order.
   final List<String> options;
+
+  /// The selected option.
   final String selected;
+
+  /// Called with the tapped option.
   final ValueChanged<String> onSelected;
 
+  /// Creates a [FloatingPeriodSelector].
   const FloatingPeriodSelector({
     super.key,
     required this.options,
@@ -98,6 +116,7 @@ class FloatingPeriodSelector extends StatefulWidget {
     height: 1.1,
   );
 
+  /// The selector height for the current text scale.
   static double heightOf(BuildContext context) =>
       math.max(56, MediaQuery.textScalerOf(context).scale(13) * 1.1 + 24);
 
@@ -105,6 +124,7 @@ class FloatingPeriodSelector extends StatefulWidget {
   State<FloatingPeriodSelector> createState() => _FloatingPeriodSelectorState();
 }
 
+/// State of [FloatingPeriodSelector].
 class _FloatingPeriodSelectorState extends State<FloatingPeriodSelector> {
   final _scroll = ScrollController();
   double _slot = 0;

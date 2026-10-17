@@ -1,3 +1,5 @@
+"""Shopping lists and their items."""
+
 from datetime import datetime
 from decimal import Decimal
 
@@ -17,6 +19,8 @@ from database import MONEY, Base, ClientIdMixin, SoftDeleteMixin, TimestampMixin
 
 
 class ShoppingList(ClientIdMixin, SoftDeleteMixin, TimestampMixin, Base):
+    """A named shopping list."""
+
     __tablename__ = "shopping_lists"
     __table_args__ = (
         UniqueConstraint("user_id", "client_id", name="uq_shopping_lists_user_client"),
@@ -39,6 +43,8 @@ class ShoppingList(ClientIdMixin, SoftDeleteMixin, TimestampMixin, Base):
 
 
 class ShoppingItem(ClientIdMixin, SoftDeleteMixin, TimestampMixin, Base):
+    """One item on a list, optionally linked to the expense that paid for it."""
+
     __tablename__ = "shopping_items"
     __table_args__ = (
         UniqueConstraint("user_id", "client_id", name="uq_shopping_items_user_client"),

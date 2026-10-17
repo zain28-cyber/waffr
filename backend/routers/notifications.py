@@ -1,3 +1,5 @@
+"""/notifications: in-app notifications, at most one live row per event key."""
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -40,6 +42,7 @@ def list_notifications(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """The user's live notifications, newest first."""
     rows = (
         db.query(Notification)
         .filter(
@@ -58,6 +61,7 @@ def create_notification(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Create a notification, or return the one with the same client id or event key."""
     client_id = normalize_client_id(data.client_id)
     existing = find_by_client_id(db, Notification, current_user.id, client_id)
     if existing is not None:
@@ -113,6 +117,7 @@ def mark_all_read(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Mark every live notification read and return them."""
     rows = (
         db.query(Notification)
         .filter(
@@ -133,6 +138,7 @@ def get_notification(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """One notification, or 404."""
     return _to_out(owned_or_404(db, Notification, notification_id, current_user.id))
 
 
@@ -143,6 +149,7 @@ def update_notification(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Change a notification's read state."""
     row = owned_or_404(db, Notification, notification_id, current_user.id)
     if data.is_read is not None:
         row.is_read = data.is_read
@@ -157,6 +164,7 @@ def delete_notification(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Soft-delete one notification."""
     row = owned_or_404(db, Notification, notification_id, current_user.id)
     row.deleted_at = utc_now()
     row.updated_at = utc_now()
@@ -169,6 +177,7 @@ def clear_notifications(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Soft-delete every live notification."""
     now = utc_now()
     rows = (
         db.query(Notification)

@@ -1,18 +1,30 @@
 // Signup profile fields and validation before the account credentials step.
 
-// Demographics collected during registration, sent with the auth request.
-// Gender, phone and address are optional.
+/// Demographics collected during registration, sent with the auth request.
+/// Gender, phone and address are optional.
 class RegistrationProfile {
+  /// Display name.
   final String name;
+
+  /// Date of birth.
   final DateTime birthDate;
+
+  /// "male", "female" or null when not given.
   final String? gender;
+
+  /// Country name.
   final String country;
+
+  /// City (required by the form).
   final String city;
+
+  /// Street (optional).
   final String street;
 
   /// Full international number ("+963 912345678"), or empty.
   final String phone;
 
+  /// A sign-up profile.
   const RegistrationProfile({
     required this.name,
     required this.birthDate,
@@ -23,7 +35,7 @@ class RegistrationProfile {
     this.phone = '',
   });
 
-  // Flattened map for the signup API; omits empty optional fields.
+  /// Flattened map for the signup API; omits empty optional fields.
   Map<String, String> toAuthBody() {
     final cityText = city.trim();
     final address = street.trim();
@@ -40,7 +52,10 @@ class RegistrationProfile {
   }
 }
 
+/// Longest accepted city name.
 const int maxCityLength = 80;
+
+/// Longest accepted street text.
 const int maxStreetLength = 160;
 
 /// One "city, street" field split for the account: the city comes before
@@ -67,18 +82,19 @@ String? normalizePhoneNumber(String raw) {
   return digits;
 }
 
-// Full years between birth and today (or [today] when testing).
+/// Full years between birth and today (or [today] when testing).
 int ageInYears(DateTime birth, [DateTime? today]) {
   final now = today ?? DateTime.now();
   var age = now.year - birth.year;
-  final birthdayPassed = now.month > birth.month ||
+  final birthdayPassed =
+      now.month > birth.month ||
       (now.month == birth.month && now.day >= birth.day);
   if (!birthdayPassed) age -= 1;
   if (age < 0) return 0;
   return age;
 }
 
-// True when the chosen birth date is not in the future.
+/// True when the chosen birth date is not in the future.
 bool isValidBirthDate(DateTime birth, [DateTime? today]) {
   final now = today ?? DateTime.now();
   final current = DateTime(now.year, now.month, now.day);
@@ -86,7 +102,7 @@ bool isValidBirthDate(DateTime birth, [DateTime? today]) {
   return !selected.isAfter(current);
 }
 
-// Arabic error for the profile form, or null when everything looks fine.
+/// Arabic error for the profile form, or null when everything looks fine.
 String? registrationProfileError({
   required String name,
   required DateTime? birthDate,

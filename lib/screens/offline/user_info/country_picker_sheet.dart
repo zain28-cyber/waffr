@@ -7,6 +7,8 @@ import 'package:waffr/core/theme/app_palette.dart';
 import 'package:waffr/data/models/country.dart';
 import 'package:waffr/widgets/containers/glass_sheet.dart';
 
+/// Opens the searchable country list and returns the picked country, or
+/// null when dismissed. [selected] is highlighted.
 Future<CountryInfo?> showCountryPickerSheet(
   BuildContext context, {
   CountryInfo? selected,
@@ -18,6 +20,7 @@ Future<CountryInfo?> showCountryPickerSheet(
   );
 }
 
+/// Sheet body: header with a search field above the filtered country list.
 class _CountryPickerSheet extends StatefulWidget {
   final CountryInfo? selected;
 
@@ -27,6 +30,8 @@ class _CountryPickerSheet extends StatefulWidget {
   State<_CountryPickerSheet> createState() => _CountryPickerSheetState();
 }
 
+/// State of [_CountryPickerSheet]. Owns the search controller; the list is
+/// re-filtered with [Countries.search] on every keystroke.
 class _CountryPickerSheetState extends State<_CountryPickerSheet> {
   final TextEditingController _search = TextEditingController();
 
@@ -78,6 +83,7 @@ class _CountryPickerSheetState extends State<_CountryPickerSheet> {
   }
 }
 
+/// One country row: check mark when selected, Arabic name, calling code.
 class _CountryTile extends StatelessWidget {
   final CountryInfo country;
   final bool selected;

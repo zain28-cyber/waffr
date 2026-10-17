@@ -1,3 +1,5 @@
+"""/online: the economic news feed and a rate-limited manual refresh."""
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
@@ -13,6 +15,7 @@ router = APIRouter(prefix="/online", tags=["online"])
 
 @router.get("/news", response_model=list[NewsArticleOut])
 def list_news(db: Session = Depends(get_db)):
+    """Latest stored articles; fetches once when the table is empty."""
     try:
         return latest_articles(db)
     except NewsFeedUnavailable:
@@ -29,6 +32,7 @@ def refresh_news_now(
     request: Request,
     current_user: User = Depends(get_current_user),
 ):
+    """Fetch the feeds now. Needs an account; tightly rate limited."""
     enforce(request, f"news-refresh:user:{current_user.id}", NEWS_REFRESH_USER)
     enforce(request, "news-refresh:all", NEWS_REFRESH_ALL)
     result = refresh_news(wait=True)

@@ -4,11 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:waffr/widgets/containers/app_empty_state.dart';
 import 'package:waffr/data/models/savings_goal.dart';
 import 'package:waffr/data/stores/transaction_store.dart';
-import 'package:waffr/core/theme/app_color.dart';
 import 'package:waffr/core/utils/money.dart';
 import 'package:waffr/widgets/containers/glass.dart';
 import 'package:waffr/widgets/containers/glass_sheet.dart';
+import 'package:waffr/core/theme/app_palette.dart';
 
+/// Opens the sheet listing goals that have already been completed.
 Future<void> showCompletedGoalsSheet(BuildContext context) {
   return showGlassSheet<void>(
     context: context,
@@ -16,7 +17,8 @@ Future<void> showCompletedGoalsSheet(BuildContext context) {
   );
 }
 
-// Sheet body listing goals that have already hit their target.
+/// Sheet body listing goals that have already hit their target, or an
+/// empty state when there are none.
 class _CompletedGoalsSheet extends StatefulWidget {
   const _CompletedGoalsSheet();
 
@@ -24,6 +26,7 @@ class _CompletedGoalsSheet extends StatefulWidget {
   State<_CompletedGoalsSheet> createState() => _CompletedGoalsSheetState();
 }
 
+/// State of [_CompletedGoalsSheet]. Rebuilds once the ledger has loaded.
 class _CompletedGoalsSheetState extends State<_CompletedGoalsSheet> {
   final TransactionStore _store = TransactionStore.instance;
 
@@ -37,12 +40,10 @@ class _CompletedGoalsSheetState extends State<_CompletedGoalsSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textPrimary =
-        isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final textSecondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
-    final accent = isDark ? AppColors.darkAccent : AppColors.lightAccent;
+    final palette = AppPalette.of(context);
+    final textPrimary = palette.textPrimary;
+    final textSecondary = palette.textSecondary;
+    final accent = palette.accent;
     final goals = _store.completedGoals;
 
     return GlassSheetBody(
@@ -73,7 +74,8 @@ class _CompletedGoalsSheetState extends State<_CompletedGoalsSheet> {
   }
 }
 
-// One finished goal: name, amount reached, and completion date.
+/// One finished goal: name, target, amount reached, duration, and
+/// completion date.
 class _CompletedGoalCard extends StatelessWidget {
   final SavingsGoal goal;
   final Color accent;
@@ -104,7 +106,8 @@ class _CompletedGoalCard extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontFamily: 'Outfit', fontFamilyFallback: ['Tajawal'],
+              fontFamily: 'Outfit',
+              fontFamilyFallback: ['Tajawal'],
               fontSize: 16,
               fontWeight: FontWeight.bold,
               color: textPrimary,
@@ -114,7 +117,8 @@ class _CompletedGoalCard extends StatelessWidget {
           Text(
             'المستهدف: ${formatMoney(goal.targetAmount)} $currencyLabel',
             style: TextStyle(
-              fontFamily: 'Outfit', fontFamilyFallback: ['Tajawal'],
+              fontFamily: 'Outfit',
+              fontFamilyFallback: ['Tajawal'],
               fontSize: 13,
               color: textSecondary,
             ),
@@ -122,7 +126,8 @@ class _CompletedGoalCard extends StatelessWidget {
           Text(
             'المبلغ المجموع: ${formatMoney(total)} $currencyLabel',
             style: TextStyle(
-              fontFamily: 'Outfit', fontFamilyFallback: ['Tajawal'],
+              fontFamily: 'Outfit',
+              fontFamilyFallback: ['Tajawal'],
               fontSize: 13.5,
               fontWeight: FontWeight.w700,
               color: accent,
@@ -132,7 +137,8 @@ class _CompletedGoalCard extends StatelessWidget {
           Text(
             'المدة: ${goal.duration.label}',
             style: TextStyle(
-              fontFamily: 'Outfit', fontFamilyFallback: ['Tajawal'],
+              fontFamily: 'Outfit',
+              fontFamilyFallback: ['Tajawal'],
               fontSize: 12.5,
               color: textSecondary,
             ),
@@ -141,7 +147,8 @@ class _CompletedGoalCard extends StatelessWidget {
             Text(
               'تاريخ الإنجاز: ${formatDate(completed)}',
               style: TextStyle(
-                fontFamily: 'Outfit', fontFamilyFallback: ['Tajawal'],
+                fontFamily: 'Outfit',
+                fontFamilyFallback: ['Tajawal'],
                 fontSize: 12.5,
                 color: textSecondary,
               ),

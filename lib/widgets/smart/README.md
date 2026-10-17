@@ -1,8 +1,14 @@
 # Smart effects
 
-`SmartAnalysisButton` opens the local insight screen. Its introductory border
+| File | Contents |
+| --- | --- |
+| `smart_analysis_button.dart` | `SmartAnalysisButton(scope:, style:)`: opens `SmartAnalysisScreen` for an `InsightScope`, drawn as a header pill, an in-card tile or a full-width banner (`SmartButtonStyle`). |
+| `smart_glow.dart` | `SmartGlowBackground` (drifting color glow), `SmartSpark` (spinning spark while the analysis writes), `SmartGradientIcon`, `smartGlowColors()`. |
+
+`SmartAnalysisButton` opens the local insight screen (`core/insights/smart`). Its introductory border
 turns until the user opens an analysis, but only while its tab is visible and
-the device allows motion. The shared seen flag is stored in preferences.
+the device allows motion. The shared seen flag (`smart_analysis_seen`) is
+stored in preferences and read from `AppPrefs.cached` during build.
 
 `SmartGlowBackground` paints its drift through a `CustomPainter` repaint
 listener rather than rebuilding the screen each frame. Hidden, transparent,

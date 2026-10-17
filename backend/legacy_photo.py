@@ -9,6 +9,7 @@ _UPLOAD_DIR = Path(__file__).resolve().parent / "uploads" / "avatars"
 
 
 def photo_meta() -> dict:
+    """The "no photo" answer older app versions expect."""
     # No photo, stamped now so older apps (newer server time wins) drop the
     # photo they still keep on the device and stop uploading it.
     return {"has_photo": False, "photo_updated_at": utc_now()}

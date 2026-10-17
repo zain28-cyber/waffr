@@ -34,6 +34,7 @@ class Rule:
 
     @property
     def interval(self) -> float:
+        """Seconds between requests at the steady rate."""
         return self.period / self.limit
 
 
@@ -100,10 +101,12 @@ class RateLimiter:
             return max(wait, 0.0)
 
     def reset(self, key: str) -> None:
+        """Forget [key]'s count."""
         with self._lock:
             self._tat.pop(key, None)
 
     def clear(self) -> None:
+        """Forget every count."""
         with self._lock:
             self._tat.clear()
 
@@ -127,6 +130,7 @@ def _retry_after(wait: float) -> str:
 
 
 def too_many(wait: float) -> HTTPException:
+    """A 429 with a Retry-After header."""
     return HTTPException(
         status_code=429,
         detail=TOO_MANY,
@@ -143,10 +147,12 @@ def enforce(request: Request, key: str, rule: Rule) -> None:
 
 
 def enforce_ip(request: Request, name: str, rule: Rule) -> None:
+    """``enforce`` keyed by the caller's IP address."""
     enforce(request, f"{name}:ip:{client_ip(request.scope)}", rule)
 
 
 def email_key(name: str, email: str) -> str:
+    """Limiter key for [email], hashed like the logs."""
     return f"{name}:email:{email_tag(email)}"
 
 

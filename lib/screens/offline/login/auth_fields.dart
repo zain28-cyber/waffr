@@ -1,7 +1,8 @@
+// Shared field chrome for the login, register and forgot-password screens.
+
 import 'package:flutter/material.dart';
 
-// Shared field chrome for login and register screens.
-
+/// Filled, borderless rounded text-field decoration used by the auth screens.
 InputDecoration authFieldDecoration({
   required String hint,
   required Color fillColor,
@@ -22,10 +23,15 @@ InputDecoration authFieldDecoration({
   );
 }
 
+/// Bold label shown above an auth text field.
 class AuthFieldLabel extends StatelessWidget {
+  /// Label text.
   final String text;
+
+  /// Text color.
   final Color color;
 
+  /// Creates a [AuthFieldLabel].
   const AuthFieldLabel({super.key, required this.text, required this.color});
 
   @override

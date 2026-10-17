@@ -60,6 +60,15 @@ class AppMotion {
   /// [duration], or zero when the device asks for reduced motion.
   static Duration of(BuildContext context, Duration duration) =>
       reduced(context) ? Duration.zero : duration;
+
+  /// The "no animation" duration for [AnimatedSize]. Duration.zero makes it
+  /// finish inside its own layout and re-dirty itself, which the framework
+  /// rejects, so it gets one microsecond instead.
+  static const Duration instantSize = Duration(microseconds: 1);
+
+  /// Like [of] for [AnimatedSize]: [instantSize] under reduced motion.
+  static Duration sizeOf(BuildContext context, Duration duration) =>
+      reduced(context) ? instantSize : duration;
 }
 
 /// Page steps for period pagers (reports, savings) that honor reduced

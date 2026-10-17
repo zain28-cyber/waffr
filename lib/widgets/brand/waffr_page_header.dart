@@ -1,20 +1,33 @@
 // Shared top app bar for the shell and settings-style screens.
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:waffr/core/theme/app_color.dart';
 import 'package:waffr/core/theme/app_motion.dart';
+import 'package:waffr/core/theme/app_palette.dart';
 
 /// Fixed-height page header with optional scroll-elevation shadow.
 class WaffrPageHeader extends StatelessWidget implements PreferredSizeWidget {
+  /// Header height without the status bar.
   static const double height = 68;
 
+  /// Title widget (usually text or the logo).
   final Widget title;
+
+  /// Optional widget at the start (back arrow).
   final Widget? leading;
+
+  /// Space kept for [leading].
   final double leadingWidth;
+
+  /// Center the title instead of starting it after [leading].
   final bool centerTitle;
+
+  /// When true the header casts its scroll shadow.
   final ValueListenable<bool>? elevated;
+
+  /// Pad for the status bar.
   final bool applySafeArea;
 
+  /// Creates a [WaffrPageHeader].
   const WaffrPageHeader({
     super.key,
     required this.title,
@@ -31,14 +44,14 @@ class WaffrPageHeader extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     if (elevated == null) {
-        return _HeaderChrome(
-          title: title,
-          leading: leading,
-          leadingWidth: leadingWidth,
-          centerTitle: centerTitle,
-          elevated: false,
-          applySafeArea: applySafeArea,
-        );
+      return _HeaderChrome(
+        title: title,
+        leading: leading,
+        leadingWidth: leadingWidth,
+        centerTitle: centerTitle,
+        elevated: false,
+        applySafeArea: applySafeArea,
+      );
     }
 
     return ValueListenableBuilder<bool>(
@@ -60,6 +73,7 @@ class WaffrPageHeader extends StatelessWidget implements PreferredSizeWidget {
 /// Header of every pushed screen: back arrow and centered title. Use this
 /// instead of building a [WaffrPageHeader] by hand so all screens match.
 class WaffrBackHeader extends StatelessWidget implements PreferredSizeWidget {
+  /// Centered title text.
   final String title;
 
   /// Defaults to popping the current route.
@@ -70,9 +84,14 @@ class WaffrBackHeader extends StatelessWidget implements PreferredSizeWidget {
 
   /// False hides the back arrow on the first screen of a flow.
   final bool showBack;
+
+  /// When true the header casts its scroll shadow.
   final ValueListenable<bool>? elevated;
+
+  /// Pad for the status bar.
   final bool applySafeArea;
 
+  /// Creates a [WaffrBackHeader].
   const WaffrBackHeader({
     super.key,
     required this.title,
@@ -88,9 +107,8 @@ class WaffrBackHeader extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textPrimary =
-        isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
+    final palette = AppPalette.of(context);
+    final textPrimary = palette.textPrimary;
 
     return WaffrPageHeader(
       centerTitle: true,
@@ -136,8 +154,9 @@ class _HeaderChrome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = isDark ? AppColors.darkAccent : AppColors.lightAccent;
-    final surface = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final palette = AppPalette.of(context);
+    final accent = palette.accent;
+    final surface = palette.surface;
 
     return AnimatedContainer(
       duration: AppMotion.of(context, AppMotion.fast),
@@ -169,9 +188,7 @@ class _HeaderChrome extends StatelessWidget {
           ),
         ),
       ),
-      child: applySafeArea
-          ? SafeArea(bottom: false, child: _bar)
-          : _bar,
+      child: applySafeArea ? SafeArea(bottom: false, child: _bar) : _bar,
     );
   }
 
@@ -182,10 +199,7 @@ class _HeaderChrome extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8),
         child: Row(
           children: [
-            SizedBox(
-              width: leadingWidth,
-              child: leading,
-            ),
+            SizedBox(width: leadingWidth, child: leading),
             Expanded(
               child: centerTitle
                   ? Center(child: title)

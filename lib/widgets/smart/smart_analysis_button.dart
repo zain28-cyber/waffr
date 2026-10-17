@@ -12,15 +12,30 @@ import 'package:waffr/core/theme/app_palette.dart';
 import 'package:waffr/screens/offline/smart/smart_analysis_screen.dart';
 import 'package:waffr/widgets/smart/smart_glow.dart';
 
-enum SmartButtonStyle { pill, tile, banner }
+/// How a [SmartAnalysisButton] is drawn.
+enum SmartButtonStyle {
+  /// A compact pill for card headers.
+  pill,
 
+  /// A small square tile inside a card.
+  tile,
+
+  /// A full-width banner.
+  banner,
+}
+
+/// Opens the smart analysis for [scope].
 class SmartAnalysisButton extends StatefulWidget {
+  /// Which area the analysis looks at.
   final InsightScope scope;
+
+  /// How the button is drawn.
   final SmartButtonStyle style;
 
   /// A roomier pill, for screens where it stands on its own.
   final bool large;
 
+  /// Creates a [SmartAnalysisButton].
   const SmartAnalysisButton({
     super.key,
     required this.scope,
@@ -32,6 +47,7 @@ class SmartAnalysisButton extends StatefulWidget {
   State<SmartAnalysisButton> createState() => _SmartAnalysisButtonState();
 }
 
+/// State of [SmartAnalysisButton].
 class _SmartAnalysisButtonState extends State<SmartAnalysisButton>
     with SingleTickerProviderStateMixin {
   // Set once the user has opened the analysis; shared by every button.
@@ -101,6 +117,7 @@ class _SmartAnalysisButtonState extends State<SmartAnalysisButton>
       SmartButtonStyle.banner => 22,
     });
 
+    // The spark flies into the analysis screen when it opens.
     final spark = Hero(
       tag: smartSparkHeroTag(widget.scope),
       child: SmartSpark(
@@ -112,6 +129,7 @@ class _SmartAnalysisButtonState extends State<SmartAnalysisButton>
       ),
     );
 
+    // Text and layout per style.
     final Widget content = switch (style) {
       SmartButtonStyle.banner => Row(
         children: [
@@ -174,6 +192,7 @@ class _SmartAnalysisButtonState extends State<SmartAnalysisButton>
       ),
     };
 
+    // A slowly turning gradient border around a softly tinted fill.
     return Semantics(
       button: true,
       label: 'التحليل الذكي',

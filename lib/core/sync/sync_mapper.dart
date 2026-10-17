@@ -3,24 +3,30 @@
 import 'dart:convert';
 
 import 'package:waffr/data/models/app_notification.dart';
-import 'package:waffr/data/stores/category_store.dart';
-import 'package:waffr/data/stores/currency_store.dart';
+import 'package:waffr/data/models/currency.dart';
+import 'package:waffr/data/models/custom_category_entry.dart';
 import 'package:waffr/data/models/recurring_expense.dart';
 import 'package:waffr/data/models/savings_goal.dart';
 import 'package:waffr/data/models/transaction.dart';
 import 'package:waffr/core/sync/sync_clock.dart';
 import 'package:waffr/core/sync/sync_tombstones.dart';
 
+/// Client id of the one shopping list the app keeps.
 const String defaultShoppingListId = 'shopping_default';
+
+/// Name of that list on the server.
 const String defaultShoppingListName = 'المشتريات';
 
+/// A number from the API, where amounts travel as strings; null when blank
+/// or not a number.
 double? parseMoney(Object? raw) {
   if (raw == null) return null;
   if (raw is num) return raw.toDouble();
   return double.tryParse(raw.toString());
 }
 
-// Wrap upserts + delete tombstones the way the /sync API expects per collection.
+/// Upserts and delete tombstones in the shape the /sync API expects per
+/// collection.
 Map<String, dynamic> collectionPayload({
   required List<Map<String, dynamic>> upserts,
   required List<SyncTombstone> deletes,
@@ -31,6 +37,7 @@ Map<String, dynamic> collectionPayload({
   };
 }
 
+/// An income or expense as a /sync `transactions` row.
 Map<String, dynamic> transactionToSync(WaffrTransaction item) {
   return {
     'client_id': item.id,
@@ -48,6 +55,7 @@ Map<String, dynamic> transactionToSync(WaffrTransaction item) {
   };
 }
 
+/// A savings move as a /sync `savings_transfers` row.
 Map<String, dynamic> transferToSync(WaffrTransaction item) {
   return {
     'client_id': item.id,
@@ -63,6 +71,7 @@ Map<String, dynamic> transferToSync(WaffrTransaction item) {
   };
 }
 
+/// A goal as a /sync `savings_goals` row.
 Map<String, dynamic> goalToSync(SavingsGoal item) {
   return {
     'client_id': item.id,
@@ -76,7 +85,9 @@ Map<String, dynamic> goalToSync(SavingsGoal item) {
     'is_periodic': item.isPeriodic,
     'duration_count': item.durationCount,
     'priority': item.priority,
-    'completed_at': item.completedAt == null ? null : toSyncIso(item.completedAt),
+    'completed_at': item.completedAt == null
+        ? null
+        : toSyncIso(item.completedAt),
     'completed_amount': item.completedAmount?.toString(),
     'created_at': toSyncIso(item.createdAt),
     'currency_code': item.currencyCode,
@@ -84,6 +95,7 @@ Map<String, dynamic> goalToSync(SavingsGoal item) {
   };
 }
 
+/// The default shopping list row, stamped now.
 Map<String, dynamic> shoppingListToSync() {
   return {
     'client_id': defaultShoppingListId,
@@ -92,6 +104,7 @@ Map<String, dynamic> shoppingListToSync() {
   };
 }
 
+/// A recurring bill as a /sync `recurring_expenses` row.
 Map<String, dynamic> recurringToSync(RecurringExpense item) {
   return {
     'client_id': item.id,
@@ -112,6 +125,7 @@ Map<String, dynamic> recurringToSync(RecurringExpense item) {
   };
 }
 
+/// A notification as a /sync `notifications` row.
 Map<String, dynamic> notificationToSync(AppNotification item) {
   return {
     'client_id': item.id,
@@ -127,6 +141,7 @@ Map<String, dynamic> notificationToSync(AppNotification item) {
   };
 }
 
+/// A custom category as a /sync `expense_categories` row.
 Map<String, dynamic> categoryToSync(CustomCategoryEntry item) {
   return {
     'client_id': item.id,
@@ -136,6 +151,8 @@ Map<String, dynamic> categoryToSync(CustomCategoryEntry item) {
   };
 }
 
+/// A server `transactions` row as a ledger row; null when it has no id,
+/// no event time or no positive amount.
 WaffrTransaction? transactionFromSync(Map<String, dynamic> raw) {
   final amount = parseMoney(raw['amount']);
   if (amount == null || amount <= 0) return null;
@@ -161,14 +178,14 @@ WaffrTransaction? transactionFromSync(Map<String, dynamic> raw) {
     currencyCode: Currencies.normalize(
       _text(raw['currency_code']) ?? _text(raw['currencyCode']),
     ),
-    frequency: WaffrTransaction.frequencyFrom(
-      raw['frequency']?.toString(),
-    ),
+    frequency: WaffrTransaction.frequencyFrom(raw['frequency']?.toString()),
     periodKey: _text(raw['period_key'] ?? raw['periodKey']),
     updatedAt: parseSyncDate(raw['updated_at'] ?? raw['updatedAt']),
   );
 }
 
+/// A server `savings_transfers` row as a ledger row (savings in or out);
+/// null when incomplete.
 WaffrTransaction? transferFromSync(Map<String, dynamic> raw) {
   final amount = parseMoney(raw['amount']);
   if (amount == null || amount <= 0) return null;
@@ -177,8 +194,8 @@ WaffrTransaction? transferFromSync(Map<String, dynamic> raw) {
 
   final direction = raw['direction']?.toString();
   final kind = WaffrTransaction.transferKindFrom(raw['kind']?.toString());
-  final outgoing = direction == 'to_balance' ||
-      kind == SavingsTransferKind.withdraw;
+  final outgoing =
+      direction == 'to_balance' || kind == SavingsTransferKind.withdraw;
   final occurred = parseEventLocal(raw['occurred_at'] ?? raw['dateTime']);
   if (occurred == null) return null;
 
@@ -191,10 +208,9 @@ WaffrTransaction? transferFromSync(Map<String, dynamic> raw) {
     currencyCode: Currencies.normalize(
       _text(raw['currency_code']) ?? _text(raw['currencyCode']),
     ),
-    transferKind: kind ??
-        (outgoing
-            ? SavingsTransferKind.withdraw
-            : SavingsTransferKind.manual),
+    transferKind:
+        kind ??
+        (outgoing ? SavingsTransferKind.withdraw : SavingsTransferKind.manual),
     goalId: _text(raw['goal_client_id'] ?? raw['goalId']),
     processedPeriodKey: _text(
       raw['processed_period_key'] ?? raw['processedPeriodKey'],
@@ -203,6 +219,8 @@ WaffrTransaction? transferFromSync(Map<String, dynamic> raw) {
   );
 }
 
+/// A server `savings_goals` row as a goal, through the prefs decoder so
+/// both paths validate the same way.
 SavingsGoal? goalFromSync(Map<String, dynamic> raw) {
   return SavingsGoal.decode(
     jsonEncode({
@@ -212,15 +230,17 @@ SavingsGoal? goalFromSync(Map<String, dynamic> raw) {
       'currencyCode': raw['currency_code'] ?? raw['currencyCode'],
       'createdAt': raw['created_at'] ?? raw['createdAt'],
       'completedAt': raw['completed_at'] ?? raw['completedAt'],
-      'completedAmount':
-          parseMoney(raw['completed_amount'] ?? raw['completedAmount']),
+      'completedAmount': parseMoney(
+        raw['completed_amount'] ?? raw['completedAmount'],
+      ),
       'duration': raw['duration'],
-      'allocatePercent':
-          parseMoney(raw['allocate_percent'] ?? raw['allocatePercent']),
-      'allocateAmount':
-          parseMoney(raw['allocate_amount'] ?? raw['allocateAmount']),
-      'deductFrequency':
-          raw['deduct_frequency'] ?? raw['deductFrequency'],
+      'allocatePercent': parseMoney(
+        raw['allocate_percent'] ?? raw['allocatePercent'],
+      ),
+      'allocateAmount': parseMoney(
+        raw['allocate_amount'] ?? raw['allocateAmount'],
+      ),
+      'deductFrequency': raw['deduct_frequency'] ?? raw['deductFrequency'],
       'isPeriodic': raw['is_periodic'] ?? raw['isPeriodic'],
       'durationCount': raw['duration_count'] ?? raw['durationCount'],
       'priority': raw['priority'],
@@ -229,6 +249,7 @@ SavingsGoal? goalFromSync(Map<String, dynamic> raw) {
   );
 }
 
+/// A server `recurring_expenses` row as a bill, via the prefs decoder.
 RecurringExpense? recurringFromSync(Map<String, dynamic> raw) {
   return RecurringExpense.decode(
     jsonEncode({
@@ -252,6 +273,7 @@ RecurringExpense? recurringFromSync(Map<String, dynamic> raw) {
   );
 }
 
+/// A server `notifications` row as a notification, via the prefs decoder.
 AppNotification? notificationFromSync(Map<String, dynamic> raw) {
   return AppNotification.decode(
     jsonEncode({
@@ -269,10 +291,7 @@ AppNotification? notificationFromSync(Map<String, dynamic> raw) {
   );
 }
 
-CustomCategoryEntry? categoryFromSync(Map<String, dynamic> raw) {
-  return CustomCategoryEntry.fromSync(raw);
-}
-
+/// The maps in a JSON list; anything else is skipped.
 List<Map<String, dynamic>> asMapList(Object? raw) {
   if (raw is! List) return const [];
   return [
@@ -284,6 +303,7 @@ List<Map<String, dynamic>> asMapList(Object? raw) {
   ];
 }
 
+/// The valid tombstones in a JSON `deletes` list.
 List<SyncTombstone> tombstonesFromSync(Object? raw) {
   if (raw is! List) return const [];
   return [
@@ -292,6 +312,7 @@ List<SyncTombstone> tombstonesFromSync(Object? raw) {
   ];
 }
 
+// Trimmed text, or null when blank.
 String? _text(Object? value) {
   if (value == null) return null;
   final text = value.toString().trim();

@@ -1,8 +1,10 @@
 // Decides when a non-forced sync may skip the HTTP round-trip.
 
-// Dirty data and tombstones always sync. A clean pull is skipped only when
-// a recent attempt already completed in this process, so resume / reconnect
-// / login do not stack duplicate requests.
+/// True when a sync may skip the HTTP round-trip.
+///
+/// Dirty data and tombstones always sync. A clean pull is skipped only when
+/// a recent attempt (within [minInterval]) already completed in this
+/// process, so resume / reconnect / login do not stack duplicate requests.
 bool shouldSkipCleanPull({
   required bool force,
   required bool dirty,

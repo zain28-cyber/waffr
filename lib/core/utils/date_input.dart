@@ -20,6 +20,7 @@ String formatDateInput(DateTime date) => formatDate(date);
 /// digit above 1 is padded with a zero, so "4" becomes "04/". Deleting a
 /// separator also deletes the digit before it.
 class DateInputFormatter extends TextInputFormatter {
+  /// A formatter for DD/MM/YYYY fields.
   const DateInputFormatter();
 
   @override
@@ -46,6 +47,7 @@ class DateInputFormatter extends TextInputFormatter {
   }
 }
 
+/// Western digits of [text], converting Arabic-Indic and Persian ones.
 String _digitsOf(String text) {
   final buffer = StringBuffer();
   for (final rune in text.runes) {
@@ -63,6 +65,7 @@ String _digitsOf(String text) {
   return buffer.toString().replaceAll(_nonDigits, '');
 }
 
+/// Pads a day that can only be one digit (4-9) and a month above 1.
 String _padLeadingParts(String digits) {
   var result = digits;
   if (result.isNotEmpty && int.parse(result[0]) > 3) {
@@ -74,6 +77,7 @@ String _padLeadingParts(String digits) {
   return result;
 }
 
+/// Inserts the slashes; [trailing] adds one after a finished part.
 String _withSeparators(String digits, {required bool trailing}) {
   final buffer = StringBuffer();
   for (var i = 0; i < digits.length; i++) {

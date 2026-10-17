@@ -3,34 +3,52 @@
 // and a chevron. Section titles above groups of rows use AppSectionTitle.
 import 'package:flutter/material.dart';
 import 'package:waffr/core/theme/app_color.dart';
+import 'package:waffr/core/theme/app_palette.dart';
 
 TextStyle _tileText(Color color, double size, FontWeight weight) => TextStyle(
-      fontFamily: 'Outfit',
-      fontFamilyFallback: const ['Tajawal'],
-      fontSize: size,
-      fontWeight: weight,
-      color: color,
-    );
+  fontFamily: 'Outfit',
+  fontFamilyFallback: const ['Tajawal'],
+  fontSize: size,
+  fontWeight: weight,
+  color: color,
+);
 
+/// One settings-style row in its own card.
 class AppListTile extends StatelessWidget {
+  /// Icon in the leading box.
   final IconData icon;
 
   /// Drawn in the icon box instead of [icon] (e.g. the smart sparkle).
   final Widget? leading;
+
+  /// Row title.
   final String title;
+
+  /// Optional second line.
   final String? subtitle;
 
   /// Short state shown as a chip (e.g. «مفعّل»); [statusOn] tints it.
   final String? status;
+
+  /// Tints the [status] chip as "on".
   final bool statusOn;
 
   /// Replaces the chevron (e.g. a switch).
   final Widget? trailing;
+
+  /// Shows the chevron when there is no [trailing].
   final bool showChevron;
+
+  /// Shows a spinner instead of the chevron.
   final bool busy;
+
+  /// Paints the row in the destructive red.
   final bool destructive;
+
+  /// Called on tap; null makes the row static.
   final VoidCallback? onTap;
 
+  /// Creates a [AppListTile].
   const AppListTile({
     super.key,
     required this.icon,
@@ -48,13 +66,11 @@ class AppListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = isDark ? AppColors.darkAccent : AppColors.lightAccent;
-    final surface = isDark ? AppColors.darkSurface : AppColors.lightSurface;
-    final textPrimary =
-        isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final textSecondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final palette = AppPalette.of(context);
+    final accent = palette.accent;
+    final surface = palette.surface;
+    final textPrimary = palette.textPrimary;
+    final textSecondary = palette.textSecondary;
     final danger = AppColors.destructiveOf(context);
     final tint = destructive ? danger : accent;
 
@@ -128,10 +144,7 @@ class AppListTile extends StatelessWidget {
                   muted: textSecondary,
                 ),
               ],
-              if (end != null) ...[
-                const SizedBox(width: 8),
-                end,
-              ],
+              if (end != null) ...[const SizedBox(width: 8), end],
             ],
           ),
         ),
@@ -140,6 +153,7 @@ class AppListTile extends StatelessWidget {
   }
 }
 
+/// The small status chip at the end of a row.
 class _StatusChip extends StatelessWidget {
   final String label;
   final bool on;
@@ -169,15 +183,16 @@ class _StatusChip extends StatelessWidget {
 
 /// Small grey heading above a group of [AppListTile]s.
 class AppSectionTitle extends StatelessWidget {
+  /// Heading text.
   final String title;
 
+  /// Creates a [AppSectionTitle].
   const AppSectionTitle({super.key, required this.title});
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textSecondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final palette = AppPalette.of(context);
+    final textSecondary = palette.textSecondary;
 
     return Padding(
       padding: const EdgeInsetsDirectional.only(start: 5, bottom: 10),

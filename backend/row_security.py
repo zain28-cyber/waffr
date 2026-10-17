@@ -89,6 +89,7 @@ def _policies(table: str) -> list[tuple[str, str]]:
 
 
 def protected_tables() -> tuple[str, ...]:
+    """Every table that gets row security policies."""
     return ("users", *OWNED_TABLES, *PUBLIC_READ_TABLES)
 
 

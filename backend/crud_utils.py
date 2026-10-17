@@ -1,3 +1,7 @@
+"""Small helpers shared by the routers: normalizing input, ownership checks,
+idempotent creates, and the unit/period and kind/direction mappings.
+"""
+
 import re
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -27,6 +31,7 @@ _CURRENCY = re.compile(r"^[A-Z]{3,10}$")
 
 
 def normalize_currency(value: str | None) -> str:
+    """Upper-case currency code, or "SYP" when it is not a valid code."""
     code = (value or "").strip().upper()
     if _CURRENCY.fullmatch(code) is None:
         return "SYP"
@@ -34,6 +39,7 @@ def normalize_currency(value: str | None) -> str:
 
 
 def normalize_enabled_currencies(raw: object) -> list[str]:
+    """Unique valid codes, always starting with "SYP"."""
     codes = ["SYP"]
     if not isinstance(raw, list):
         return codes
@@ -57,6 +63,7 @@ def _positive_money(value: object) -> str | None:
 
 
 def normalize_income_overrides(raw: object) -> dict:
+    """Keep positive monthly/weekly amounts per non-SYP currency."""
     if not isinstance(raw, dict):
         return {}
     cleaned: dict[str, dict[str, str]] = {}
@@ -83,6 +90,7 @@ KIND_TO_DIRECTION = {
 
 
 def as_utc(value: datetime | None) -> datetime | None:
+    """[value] in UTC; a naive value is taken to be UTC already."""
     if value is None:
         return None
     if value.tzinfo is None:
@@ -91,10 +99,12 @@ def as_utc(value: datetime | None) -> datetime | None:
 
 
 def as_utc_or_now(value: datetime | None) -> datetime:
+    """[value] in UTC, or the current time when it is None."""
     return as_utc(value) or utc_now()
 
 
 def normalize_client_id(value: str | None) -> str:
+    """The trimmed client id, or a new UUID when none was sent."""
     if value is None:
         return new_client_id()
     trimmed = value.strip()
@@ -102,6 +112,7 @@ def normalize_client_id(value: str | None) -> str:
 
 
 def empty_to_none(value: str | None) -> str | None:
+    """Trimmed text, or None when nothing is left."""
     if value is None:
         return None
     trimmed = value.strip()
@@ -109,14 +120,17 @@ def empty_to_none(value: str | None) -> str | None:
 
 
 def is_deleted(record) -> bool:
+    """True for a soft-deleted row."""
     return getattr(record, "deleted_at", None) is not None
 
 
 def not_deleted(model):
+    """Query filter for live (not soft-deleted) rows of [model]."""
     return model.deleted_at.is_(None)
 
 
 def owned_or_404(db: Session, model, record_id: int, user_id: int):
+    """The live row [record_id] of [user_id], or a 404."""
     record = db.get(model, record_id)
     if record is None or getattr(record, "user_id", None) != user_id:
         raise HTTPException(status_code=404, detail="Not found")
@@ -132,6 +146,7 @@ def find_by_client_id(
     client_id: str | None,
     include_deleted: bool = False,
 ):
+    """The user's row with [client_id], live only unless [include_deleted]."""
     if not client_id:
         return None
     query = db.query(model).filter(
@@ -144,6 +159,7 @@ def find_by_client_id(
 
 
 def soft_delete(record) -> None:
+    """Mark [record] deleted now."""
     record.deleted_at = utc_now()
     if hasattr(record, "updated_at"):
         record.updated_at = utc_now()
@@ -156,6 +172,12 @@ def commit_or_existing(
     client_id: str,
     extra_lookup=None,
 ):
+    """Commit a new row; on a unique clash return the row that won.
+
+    Returns None when the commit worked. When another request created the
+    same row first, returns that row (found by client id or [extra_lookup]),
+    or raises a 400 when there is none.
+    """
     try:
         db.commit()
         return None
@@ -172,12 +194,14 @@ def commit_or_existing(
 
 
 def apply_frequency(frequency: str) -> tuple[str, bool, str | None]:
+    """(frequency, is_recurring, recurring_period) for a transaction."""
     if frequency in {"weekly", "monthly"}:
         return frequency, True, frequency
     return "none", False, None
 
 
 def period_from_unit(unit: str) -> str:
+    """Stored period (daily, weekly, monthly) for an API unit, or 422."""
     period = UNIT_TO_PERIOD.get(unit)
     if period is None:
         raise HTTPException(status_code=422, detail="Invalid recurrence unit")
@@ -185,10 +209,12 @@ def period_from_unit(unit: str) -> str:
 
 
 def unit_from_period(period: str) -> str:
+    """API unit (day, week, month) for a stored period."""
     return PERIOD_TO_UNIT.get(period, "day")
 
 
 def direction_from_kind(kind: str | None, direction: str | None) -> str:
+    """Transfer direction: as given, else from the kind, else 422."""
     if direction in {"to_savings", "to_balance"}:
         return direction
     if kind in KIND_TO_DIRECTION:

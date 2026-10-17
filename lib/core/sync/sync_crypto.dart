@@ -38,7 +38,9 @@ Future<void> sealSyncRequest(
       // A new map: the payload may share this one with the local model.
       row.data[_metadataField] = {
         for (final entry in metadata.entries)
-          entry.key.toString(): await cipher.seal(entry.value?.toString() ?? ''),
+          entry.key.toString(): await cipher.seal(
+            entry.value?.toString() ?? '',
+          ),
       };
     }
   }

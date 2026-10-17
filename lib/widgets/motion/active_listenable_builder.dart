@@ -1,3 +1,5 @@
+// A ListenableBuilder that stops listening while its tab is hidden.
+
 import 'package:flutter/widgets.dart';
 
 /// Store-driven content that sleeps with a retained tab's [TickerMode].
@@ -6,10 +8,16 @@ import 'package:flutter/widgets.dart';
 /// summaries on every store notification. Reactivation reads the latest
 /// state immediately; notifications themselves are never buffered.
 class ActiveListenableBuilder extends StatefulWidget {
+  /// Rebuilds on its notifications while the page is active.
   final Listenable listenable;
+
+  /// Builds the content.
   final TransitionBuilder builder;
+
+  /// Passed to [builder] unchanged.
   final Widget? child;
 
+  /// Creates a [ActiveListenableBuilder].
   const ActiveListenableBuilder({
     super.key,
     required this.listenable,
@@ -22,6 +30,7 @@ class ActiveListenableBuilder extends StatefulWidget {
       _ActiveListenableBuilderState();
 }
 
+/// State of [ActiveListenableBuilder].
 class _ActiveListenableBuilderState extends State<ActiveListenableBuilder> {
   bool _listening = false;
 

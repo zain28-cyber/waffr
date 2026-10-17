@@ -2,8 +2,12 @@
 
 import 'package:flutter/material.dart';
 
+/// A category's label, icon and chart colors.
 class ExpenseCategory {
+  /// Name stored on expenses and shown on tiles.
   final String label;
+
+  /// Tile and list icon.
   final IconData icon;
 
   /// Chart color on the light theme.
@@ -12,6 +16,7 @@ class ExpenseCategory {
   /// Chart color on the dark theme: the same hue, a little lighter.
   final Color darkColor;
 
+  /// A category.
   const ExpenseCategory({
     required this.label,
     required this.icon,
@@ -20,10 +25,10 @@ class ExpenseCategory {
   });
 }
 
-// Grid order for "add expense". Chart colors are an earthy set that sits
-// with the app's green: terracotta, teal, berry, ochre, leaf green, violet
-// and sky blue. Each hue has its own lightness so neighbouring slices stay
-// apart, also for color-blind readers.
+/// Grid order for "add expense". Chart colors are an earthy set that sits
+/// with the app's green: terracotta, teal, berry, ochre, leaf green, violet
+/// and sky blue. Each hue has its own lightness so neighbouring slices stay
+/// apart, also for color-blind readers.
 const List<ExpenseCategory> expenseCategories = [
   ExpenseCategory(
     label: 'طعام',
@@ -69,8 +74,10 @@ const List<ExpenseCategory> expenseCategories = [
   ),
 ];
 
+/// Label of the "add your own" tile.
 const String customCategoryActionLabel = 'مخصص';
 
+/// The "add your own" tile at the end of the grid.
 const ExpenseCategory customCategoryAction = ExpenseCategory(
   label: customCategoryActionLabel,
   icon: Icons.add_rounded,
@@ -78,6 +85,7 @@ const ExpenseCategory customCategoryAction = ExpenseCategory(
   darkColor: Color(0xFFA39D91),
 );
 
+/// Expenses with no category, or «أخرى».
 const ExpenseCategory fallbackCategory = ExpenseCategory(
   label: 'أخرى',
   icon: Icons.more_horiz_rounded,
@@ -85,9 +93,10 @@ const ExpenseCategory fallbackCategory = ExpenseCategory(
   darkColor: Color(0xFFA39D91),
 );
 
+/// Payment methods; the first is the default.
 const List<String> paymentMethods = ['نقداً', 'بطاقة'];
 
-// Icons users can pick when creating a custom category.
+/// Icons users can pick when creating a custom category.
 const List<IconData> customCategoryIconChoices = [
   Icons.restaurant_outlined,
   Icons.lunch_dining_outlined,
@@ -130,8 +139,8 @@ const List<IconData> customCategoryIconChoices = [
   Icons.celebration_outlined,
 ];
 
-// Chart slices for added categories: more hues from the same earthy
-// family. Saved categories keep their slot index, so the order is fixed.
+/// Chart slices for added categories: more hues from the same earthy
+/// family. Saved categories keep their slot index, so the order is fixed.
 const List<Color> customCategoryColors = [
   Color(0xFF848D42),
   Color(0xFFA24B36),
@@ -147,7 +156,7 @@ const List<Color> customCategoryColors = [
   Color(0xFF57B6B6),
 ];
 
-// [customCategoryColors] for the dark theme, slot for slot.
+/// [customCategoryColors] for the dark theme, slot for slot.
 const List<Color> customCategoryDarkColors = [
   Color(0xFF90994E),
   Color(0xFFBC634D),
@@ -163,20 +172,22 @@ const List<Color> customCategoryDarkColors = [
   Color(0xFF64C3C3),
 ];
 
-// Wired by CategoryStore so charts/reports resolve saved custom icons.
+/// Wired by CategoryStore so charts/reports resolve saved custom icons.
 ExpenseCategory? Function(String label)? customCategoryLookup;
 
+/// [index] kept inside [customCategoryIconChoices].
 int clampCustomIconIndex(int index) {
   if (customCategoryIconChoices.isEmpty) return 0;
   return index.clamp(0, customCategoryIconChoices.length - 1).toInt();
 }
 
+/// [index] kept inside [customCategoryColors].
 int clampCustomColorIndex(int index) {
   if (customCategoryColors.isEmpty) return 0;
   return index.clamp(0, customCategoryColors.length - 1).toInt();
 }
 
-// First palette slot not already taken; wraps only after every color is used.
+/// First palette slot not already taken; wraps only after every color is used.
 int nextCustomColorIndex(Iterable<int> used) {
   final taken = used.toSet();
   for (var i = 0; i < customCategoryColors.length; i++) {
@@ -185,8 +196,8 @@ int nextCustomColorIndex(Iterable<int> used) {
   return taken.length % customCategoryColors.length;
 }
 
-// Builds a custom category. [colorIndex] keeps a saved color; otherwise the
-// label hash picks one from the added-category palette.
+/// Builds a custom category. [colorIndex] keeps a saved color; otherwise the
+/// label hash picks one from the added-category palette.
 ExpenseCategory customCategoryNamed(
   String label, {
   int? iconIndex,
@@ -208,7 +219,7 @@ ExpenseCategory customCategoryNamed(
   );
 }
 
-// Built-in first, then custom lookup, otherwise a hashed custom row.
+/// Built-in first, then custom lookup, otherwise a hashed custom row.
 ExpenseCategory categoryFor(String? label) {
   if (label == null || label.isEmpty) return fallbackCategory;
 
@@ -224,6 +235,7 @@ ExpenseCategory categoryFor(String? label) {
   return customCategoryNamed(label);
 }
 
+/// The chart color of [label] for the current theme.
 Color categoryChartColor(BuildContext context, String? label) {
   final category = categoryFor(label);
   return Theme.of(context).brightness == Brightness.dark

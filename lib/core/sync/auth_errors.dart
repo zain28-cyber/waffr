@@ -1,9 +1,11 @@
 // Maps FastAPI auth HTTP errors into Arabic messages for login/register UI.
 
-// The server refuses for a while after too many attempts (HTTP 429).
+/// Shown when the server refuses for a while after too many attempts (429).
 const String tooManyAttemptsMessage =
     'محاولات كثيرة. انتظر قليلاً ثم حاول مرة أخرى';
 
+/// An Arabic message for a failed `/auth` call with HTTP [status] and the
+/// decoded JSON [body].
 String describeAuthError(int status, Object? body) {
   final detail = _authDetail(body);
   if (status == 429) {
@@ -28,7 +30,7 @@ String describeAuthError(int status, Object? body) {
   return 'تعذّر الاتصال بالحساب. حاول مرة أخرى';
 }
 
-// Pull FastAPI's `detail` string (or first validation msg) from the JSON body.
+/// Pull FastAPI's `detail` string (or first validation msg) from the JSON body.
 String _authDetail(Object? body) {
   if (body is! Map) return '';
   final detail = body['detail'];

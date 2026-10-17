@@ -1,14 +1,21 @@
+// Signup flow that pairs the user-info step with the credentials step on a
+// single route.
+
 import 'package:flutter/material.dart';
 import 'package:waffr/data/models/registration_profile.dart';
 import 'package:waffr/screens/offline/login/register_screen.dart';
 import 'package:waffr/screens/offline/user_info/user_info_screen.dart';
 
-// Two-step signup on one route: profile (UserInfoScreen), then credentials.
-
+/// Two-step signup on one route: profile ([UserInfoScreen]), then
+/// credentials ([RegisterScreen]). Pushed from [LoginScreen]'s register link.
 class AccountCreationFlow extends StatefulWidget {
+  /// Runs after the account is created; passed through to [RegisterScreen].
   final Future<void> Function() onCompleted;
+
+  /// Pop back to the opener once registration succeeds.
   final bool popOnSuccess;
 
+  /// Creates a [AccountCreationFlow].
   const AccountCreationFlow({
     super.key,
     required this.onCompleted,
@@ -19,8 +26,13 @@ class AccountCreationFlow extends StatefulWidget {
   State<AccountCreationFlow> createState() => _AccountCreationFlowState();
 }
 
+/// State of [AccountCreationFlow]. Keeps the profile from step 0 and which
+/// step is showing.
 class _AccountCreationFlowState extends State<AccountCreationFlow> {
+  /// Profile collected on the user-info step; null until it is submitted.
   RegistrationProfile? _profile;
+
+  /// 0 = user info, 1 = email and password.
   int _step = 0;
 
   @override
@@ -37,6 +49,7 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
       child: Stack(
         fit: StackFit.expand,
         children: [
+          // Step 0 stays mounted (offstage) so its fields survive a trip back.
           Offstage(
             offstage: _step != 0,
             child: UserInfoScreen(

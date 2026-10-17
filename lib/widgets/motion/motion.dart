@@ -16,14 +16,20 @@ import 'package:waffr/core/utils/money.dart';
 /// entrance, so the child is never rebuilt from scratch when it ends (that
 /// used to replay the child's own animations a second time).
 class Reveal extends StatefulWidget {
+  /// The content that enters.
   final Widget child;
+
+  /// Position in the list; later items start a little later.
   final int index;
+
+  /// How far the content rises, in logical pixels.
   final double offset;
 
   /// False shows [child] at rest without an entrance (e.g. a list row that
   /// scrolled back into view).
   final bool play;
 
+  /// Creates a [Reveal].
   const Reveal({
     super.key,
     required this.child,
@@ -36,6 +42,7 @@ class Reveal extends StatefulWidget {
   State<Reveal> createState() => _RevealState();
 }
 
+/// State of [Reveal].
 class _RevealState extends State<Reveal> with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
@@ -98,15 +105,20 @@ class _RevealState extends State<Reveal> with SingleTickerProviderStateMixin {
 /// A money amount whose digits roll to the new value, like the streak
 /// counter. Grouping commas move with the digits.
 class RollingMoney extends StatefulWidget {
+  /// The amount to show.
   final num value;
+
+  /// Text style of the digits.
   final TextStyle style;
 
+  /// Creates a [RollingMoney].
   const RollingMoney({super.key, required this.value, required this.style});
 
   @override
   State<RollingMoney> createState() => _RollingMoneyState();
 }
 
+/// State of [RollingMoney].
 class _RollingMoneyState extends State<RollingMoney>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
@@ -172,11 +184,19 @@ class _RollingMoneyState extends State<RollingMoney>
 /// to the new one with a slight tilt. [progress] runs 0..1. Strings are
 /// right-aligned so units line up with units.
 class RollingText extends StatefulWidget {
+  /// Text before the change.
   final String from;
+
+  /// Text after the change.
   final String to;
+
+  /// Roll progress, 0..1.
   final double progress;
+
+  /// Text style.
   final TextStyle style;
 
+  /// Creates a [RollingText].
   const RollingText({
     super.key,
     required this.from,
@@ -189,6 +209,7 @@ class RollingText extends StatefulWidget {
   State<RollingText> createState() => _RollingTextState();
 }
 
+/// State of [RollingText].
 class _RollingTextState extends State<RollingText> {
   final TextPainter _painter = TextPainter(textDirection: TextDirection.ltr);
   final Map<String, double> _glyphWidths = {};
@@ -262,6 +283,8 @@ class _RollingTextState extends State<RollingText> {
   }
 }
 
+/// One character position of [RollingText]: the old glyph rolls out, the
+/// new one rolls in.
 class _RollingChar extends StatelessWidget {
   final String from;
   final String to;
@@ -341,10 +364,16 @@ class _RollingChar extends StatelessWidget {
 /// Animates a 0..1 ratio to its new value, starting from 0 on first build so
 /// bars fill in when a screen opens.
 class AnimatedRatio extends StatelessWidget {
+  /// Target ratio, 0..1.
   final double value;
+
+  /// Builds with the current animated value.
   final Widget Function(BuildContext context, double value) builder;
+
+  /// Length of the animation.
   final Duration duration;
 
+  /// Creates a [AnimatedRatio].
   const AnimatedRatio({
     super.key,
     required this.value,
@@ -389,9 +418,13 @@ List<Widget> staggered(List<Widget> children, {double offset = 18}) {
 /// Uncovers [child] left to right as [fraction] goes 0..1. Used to draw a
 /// chart in as if a pen were tracing it.
 class RevealClip extends StatelessWidget {
+  /// Visible share of [child] from the start edge, 0..1.
   final double fraction;
+
+  /// The clipped content.
   final Widget child;
 
+  /// Creates a [RevealClip].
   const RevealClip({super.key, required this.fraction, required this.child});
 
   @override
@@ -406,6 +439,7 @@ class RevealClip extends StatelessWidget {
   }
 }
 
+/// Clips to the leading [fraction] of the width (reading direction aware).
 class _FractionClipper extends CustomClipper<Rect> {
   final double fraction;
 

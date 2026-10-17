@@ -1,24 +1,30 @@
 // Calendar-day streak rules. A day counts once; missing a full day restarts at 1.
 
+import 'package:waffr/core/utils/calendar_days.dart';
+
+/// A streak at one moment: the run length, its last counted day, and when
+/// usage started.
 class StreakSnapshot {
+  /// Consecutive days counted, 0 before the first.
   final int count;
+
+  /// The last calendar day that counted.
   final DateTime? lastDay;
+
+  /// The first day the app was used.
   final DateTime? startedAt;
 
-  const StreakSnapshot({
-    this.count = 0,
-    this.lastDay,
-    this.startedAt,
-  });
-
-  bool get hasActivity => lastDay != null && count > 0;
+  /// A snapshot; empty by default.
+  const StreakSnapshot({this.count = 0, this.lastDay, this.startedAt});
 
   /// Day one is exactly this phrase. Later days show the consecutive count.
   String get label => count <= 1 ? 'اليوم الأول' : '$count أيام متواصلة';
 
+  /// Local midnight of [value].
   static DateTime dateOnly(DateTime value) =>
       DateTime(value.year, value.month, value.day);
 
+  /// "YYYY-MM-DD" of [value], the format the server stores.
   static String? dayKey(DateTime? value) {
     if (value == null) return null;
     final day = dateOnly(value);
@@ -27,6 +33,7 @@ class StreakSnapshot {
     return '${day.year}-$month-$date';
   }
 
+  /// A day from [dayKey] text, or null when malformed.
   static DateTime? parseDayKey(String? raw) {
     if (raw == null || raw.isEmpty) return null;
     final parts = raw.split('-');
@@ -39,6 +46,7 @@ class StreakSnapshot {
   }
 }
 
+/// Pure streak rules shared by the service, sync merge and tests.
 class StreakMath {
   /// The streak as it stands at [now]. A last day before yesterday means a
   /// whole calendar day was skipped, so the streak is broken (0) even before
@@ -46,13 +54,14 @@ class StreakMath {
   static int currentCount(StreakSnapshot state, DateTime now) {
     final last = state.lastDay;
     if (last == null || state.count < 1) return 0;
-    final yesterday = StreakSnapshot.dateOnly(now).subtract(
-      const Duration(days: 1),
-    );
+    final yesterday = StreakSnapshot.dateOnly(now)
+        .subtract(const Duration(days: 1));
     if (StreakSnapshot.dateOnly(last).isBefore(yesterday)) return 0;
     return state.count;
   }
 
+  /// [current] after opening the app at [now]: today counts once,
+  /// yesterday extends the run, an older last day restarts it at 1.
   static StreakSnapshot record(StreakSnapshot current, DateTime now) {
     final today = StreakSnapshot.dateOnly(now);
     final started = _earlier(current.startedAt, today) ?? today;
@@ -118,18 +127,15 @@ class StreakMath {
     final earlier = laterIsLocal ? remote : local;
     final laterDay = StreakSnapshot.dateOnly(later.lastDay!);
     final earlierDay = StreakSnapshot.dateOnly(earlier.lastDay!);
-    final gap = laterDay.difference(earlierDay).inDays;
+    final gap = calendarDaysBetween(earlierDay, laterDay);
     var count = later.count < 1 ? 1 : later.count;
     if (gap == 1 && count <= 1 && earlier.count > 1) {
       count = earlier.count + 1;
     }
-    return StreakSnapshot(
-      count: count,
-      lastDay: laterDay,
-      startedAt: started,
-    );
+    return StreakSnapshot(count: count, lastDay: laterDay, startedAt: started);
   }
 
+  /// True when the two snapshots would store differently.
   static bool differs(StreakSnapshot left, StreakSnapshot right) {
     return left.count != right.count ||
         StreakSnapshot.dayKey(left.lastDay) !=
@@ -137,12 +143,14 @@ class StreakMath {
         _dayKeyOrIso(left.startedAt) != _dayKeyOrIso(right.startedAt);
   }
 
+  /// The earlier of two optional dates.
   static DateTime? _earlier(DateTime? a, DateTime? b) {
     if (a == null) return b;
     if (b == null) return a;
     return a.isBefore(b) ? a : b;
   }
 
+  /// A start date compared by day only.
   static String? _dayKeyOrIso(DateTime? value) {
     if (value == null) return null;
     return StreakSnapshot.dayKey(value);

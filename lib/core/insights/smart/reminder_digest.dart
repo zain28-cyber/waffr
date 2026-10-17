@@ -11,22 +11,23 @@
 import 'dart:math' as math;
 
 import 'package:waffr/core/insights/smart/arabic_text.dart';
+import 'package:waffr/core/insights/smart/insight_phrasing.dart';
+import 'package:waffr/core/insights/smart/report_insights.dart';
 import 'package:waffr/core/insights/smart/smart_facts.dart';
-import 'package:waffr/core/utils/money.dart';
 
+/// One notification text: which fact it states ([kind]), and its words.
 typedef ReminderText = ({String kind, String title, String body});
 
+/// Writes the factual reminder texts for one set of [SmartFacts].
 class ReminderDigest {
+  /// The numbers the texts state.
   final SmartFacts facts;
-  final math.Random _random;
 
-  ReminderDigest(this.facts, {int? seed}) : _random = math.Random(seed);
+  final InsightPhrasing _p;
 
-  T _pick<T>(List<T> options) => options[_random.nextInt(options.length)];
-
-  String _m(double value) => '${formatMoney(value)} ${facts.currencySymbol}';
-
-  String _pct(double ratio) => '\u2066${(ratio * 100).abs().round()}%\u2069';
+  /// Texts over [facts]; a fixed [seed] fixes the phrasing (tests).
+  ReminderDigest(this.facts, {int? seed})
+    : _p = InsightPhrasing(facts.currencySymbol, math.Random(seed));
 
   DateTime _day(DateTime value) => DateTime(value.year, value.month, value.day);
 
@@ -46,19 +47,18 @@ class ReminderDigest {
       ?_noSpendDays(),
       ?_savings(),
       ?_monthTotal(),
-    ]..shuffle(_random);
+    ];
+    _p.shuffle(rest);
     return [...urgent, ...rest];
   }
 
+  // A bill due within four days of [fireAt], noting a short balance.
   ReminderText? _obligation(DateTime fireAt) {
     final day = _day(fireAt);
-    final upcoming = facts.obligations
-        .where((item) {
-          final due = _day(item.nextDueAt).difference(day).inDays;
-          return due >= 0 && due <= 4;
-        })
-        .toList()
-      ..sort((a, b) => a.nextDueAt.compareTo(b.nextDueAt));
+    final upcoming = facts.obligations.where((item) {
+      final due = _day(item.nextDueAt).difference(day).inDays;
+      return due >= 0 && due <= 4;
+    }).toList()..sort((a, b) => a.nextDueAt.compareTo(b.nextDueAt));
     if (upcoming.isEmpty) return null;
     final next = upcoming.first;
     final name = Ar.quote(next.name);
@@ -71,24 +71,25 @@ class ReminderDigest {
     final short = next.amount > facts.balance;
     return (
       kind: 'obligation',
-      title: _pick([
+      title: _p.pick([
         '$name مستحق $when',
         'موعد $name $when',
         '$when: دفعة $name',
       ]),
       body: short
-          ? _pick([
-              'المبلغ ${_m(next.amount)}، ورصيدك الحالي ${_m(facts.balance)}.',
-              'المبلغ ${_m(next.amount)}، وهو أكبر من رصيدك الحالي.',
+          ? _p.pick([
+              'المبلغ ${_p.money(next.amount)}، ورصيدك الحالي ${_p.money(facts.balance)}.',
+              'المبلغ ${_p.money(next.amount)}، وهو أكبر من رصيدك الحالي.',
             ])
-          : _pick([
-              'المبلغ ${_m(next.amount)}.',
-              'قيمة الدفعة ${_m(next.amount)}.',
-              'سيُخصم ${_m(next.amount)} من رصيدك.',
+          : _p.pick([
+              'المبلغ ${_p.money(next.amount)}.',
+              'قيمة الدفعة ${_p.money(next.amount)}.',
+              'سيُخصم ${_p.money(next.amount)} من رصيدك.',
             ]),
     );
   }
 
+  // Two bills or more due in the seven days from [fireAt].
   ReminderText? _paymentsAhead(DateTime fireAt) {
     final day = _day(fireAt);
     final week = facts.obligations.where((item) {
@@ -100,17 +101,20 @@ class ReminderDigest {
     final count = Ar.payments.of(week.length);
     return (
       kind: 'payments',
-      title: _pick([
-        '$count خلال الأيام السبعة القادمة',
-        'أسبوع فيه $count مستحقة',
-      ].where((text) => week.length > 2 || text.startsWith(count)).toList()),
-      body: _pick([
-        'مجموعها ${_m(total)}.',
-        'بإجمالي ${_m(total)}.',
+      title: _p.pick(
+        [
+          '$count خلال الأيام السبعة القادمة',
+          'أسبوع فيه $count مستحقة',
+        ].where((text) => week.length > 2 || text.startsWith(count)).toList(),
+      ),
+      body: _p.pick([
+        'مجموعها ${_p.money(total)}.',
+        'بإجمالي ${_p.money(total)}.',
       ]),
     );
   }
 
+  // The balance will run out before the next income at the recent pace.
   ReminderText? _shortBalance(DateTime fireAt) {
     final income = facts.daysUntilIncome;
     final runway = facts.runwayDays;
@@ -124,34 +128,39 @@ class ReminderDigest {
         : 'يكفي نحو ${Ar.days.of(runwayLeft)}';
     return (
       kind: 'short-balance',
-      title: _pick([
+      title: _p.pick([
         'رصيدك قد لا يكفي حتى الدخل',
         'رصيدك أقصر من المدة المتبقية حتى الدخل',
       ]),
-      body: _pick([
+      body: _p.pick([
         'بالوتيرة الأخيرة $lasting، والدخل بعد ${Ar.days.of(incomeLeft)}.',
-        'الحد اليومي الذي يوصلك إلى الدخل ${_m(facts.balance / incomeLeft)}.',
+        'الحد اليومي الذي يوصلك إلى الدخل ${_p.money(facts.balance / incomeLeft)}.',
       ]),
     );
   }
 
+  // The balance, the days to the next income, and the daily allowance.
   ReminderText? _balance(DateTime fireAt) {
     final income = facts.daysUntilIncome;
     if (income == null || facts.balance <= 0) return null;
     final left = income - _offset(fireAt);
     if (left < 2) return null;
-    final perDay = _m(facts.balance / left);
-    final balance = _m(facts.balance);
+    final perDay = _p.money(facts.balance / left);
+    final balance = _p.money(facts.balance);
     final days = Ar.days.of(left);
     // Title and body are paired so neither repeats the other.
-    final (title, body) = _pick([
-      ('متبقٍّ في رصيدك $balance', 'والدخل القادم بعد $days، أي نحو $perDay لكل يوم.'),
+    final (title, body) = _p.pick([
+      (
+        'متبقٍّ في رصيدك $balance',
+        'والدخل القادم بعد $days، أي نحو $perDay لكل يوم.',
+      ),
       ('رصيدك الحالي $balance', 'ما يعادل $perDay يومياً حتى الدخل القادم.'),
       ('الدخل القادم بعد $days', 'ورصيدك $balance، بمعدل $perDay لليوم.'),
     ]);
     return (kind: 'balance', title: title, body: body);
   }
 
+  // The category that grew most against last month (over 30%).
   ReminderText? _categoryChange() {
     MapEntry<String, double>? top;
     var growth = 0.0;
@@ -169,19 +178,20 @@ class ReminderDigest {
     final before = facts.prevMonthCategories[top.key]!;
     return (
       kind: 'category',
-      title: _pick([
-        'صرفك على $name أعلى بنسبة ${_pct(growth)}',
+      title: _p.pick([
+        'صرفك على $name أعلى بنسبة ${_p.percent(growth)}',
         'ارتفاع في صرف $name',
-        '$name يرتفع بنسبة ${_pct(growth)}',
+        '$name يرتفع بنسبة ${_p.percent(growth)}',
       ]),
-      body: _pick([
-        '${_m(top.value)} هذا الشهر مقابل ${_m(before)} في الفترة نفسها من الشهر الماضي.',
-        'الفارق عن الشهر الماضي ${_m(top.value - before)} حتى الآن.',
-        'بلغ ${_m(top.value)} بعد أن كان ${_m(before)} في الفترة نفسها.',
+      body: _p.pick([
+        '${_p.money(top.value)} هذا الشهر مقابل ${_p.money(before)} في الفترة نفسها من الشهر الماضي.',
+        'الفارق عن الشهر الماضي ${_p.money(top.value - before)} حتى الآن.',
+        'بلغ ${_p.money(top.value)} بعد أن كان ${_p.money(before)} في الفترة نفسها.',
       ]),
     );
   }
 
+  // The active goal closest to done.
   ReminderText? _goal() {
     final active = facts.goals.where((goal) => goal.ratio < 1).toList()
       ..sort((a, b) => b.ratio.compareTo(a.ratio));
@@ -190,59 +200,61 @@ class ReminderDigest {
     final name = Ar.quote(goal.name);
     return (
       kind: 'goal',
-      title: _pick([
-        '$name وصل إلى ${_pct(goal.ratio)}',
-        'هدفك $name: ${_pct(goal.ratio)}',
+      title: _p.pick([
+        '$name وصل إلى ${_p.percent(goal.ratio)}',
+        'هدفك $name: ${_p.percent(goal.ratio)}',
         goal.ratio >= 0.8
             ? '$name على وشك الاكتمال'
-            : 'أنجزت ${_pct(goal.ratio)} من $name',
+            : 'أنجزت ${_p.percent(goal.ratio)} من $name',
       ]),
-      body: _pick([
-        'بقي ${_m(goal.remaining)} على الهدف.',
-        'تم توفير ${_m(goal.saved)} من أصل ${_m(goal.target)}.',
-        'المتبقي لإكماله ${_m(goal.remaining)}.',
+      body: _p.pick([
+        'بقي ${_p.money(goal.remaining)} على الهدف.',
+        'تم توفير ${_p.money(goal.saved)} من أصل ${_p.money(goal.target)}.',
+        'المتبقي لإكماله ${_p.money(goal.remaining)}.',
       ]),
     );
   }
 
+  // One category taking 30% of the month's spending or more.
   ReminderText? _topShare() {
     if (facts.monthSpent <= 0 || facts.monthCategories.length < 2) return null;
-    final top = facts.monthCategories.entries
-        .reduce((a, b) => a.value >= b.value ? a : b);
+    final top = largestCategory(facts.monthCategories)!;
     final share = top.value / facts.monthSpent;
     if (share < 0.3) return null;
     final name = Ar.category(top.key);
     return (
       kind: 'top-share',
-      title: _pick([
-        '$name يمثّل ${_pct(share)} من صرف الشهر',
+      title: _p.pick([
+        '$name يمثّل ${_p.percent(share)} من صرف الشهر',
         'الحصة الأكبر هذا الشهر ${Ar.li(name)}',
       ]),
-      body: _pick([
-        'بمبلغ ${_m(top.value)} حتى الآن.',
-        'أي ${_m(top.value)} من أصل ${_m(facts.monthSpent)}.',
+      body: _p.pick([
+        'بمبلغ ${_p.money(top.value)} حتى الآن.',
+        'أي ${_p.money(top.value)} من أصل ${_p.money(facts.monthSpent)}.',
       ]),
     );
   }
 
+  // Days without spending this month (from the 7th, three or more).
   ReminderText? _noSpendDays() {
     if (facts.dayOfMonth < 7) return null;
     final days = facts.noSpendDaysThisMonth;
     if (days < 3 || facts.dailyAverageThisMonth <= 0) return null;
-    final saved = _m(days * facts.dailyAverageThisMonth);
+    final saved = _p.money(days * facts.dailyAverageThisMonth);
     return (
       kind: 'no-spend',
-      title: _pick([
+      title: _p.pick([
         '${Ar.days.of(days)} بلا صرف هذا الشهر',
         'مرّت ${Ar.days.of(days)} هذا الشهر دون أي مصروف',
       ]),
-      body: _pick([
+      body: _p.pick([
         'وهذا يعادل نحو $saved بحسب متوسطك اليومي.',
         'أي ما يعادل نحو $saved بمتوسط صرفك اليومي.',
       ]),
     );
   }
 
+  // The savings balance and how long it would cover normal spending.
   ReminderText? _savings() {
     if (facts.savingsBalance <= 0) return null;
     final daily = facts.dailyAverageRecent;
@@ -252,42 +264,41 @@ class ReminderDigest {
       final cover = days >= 60
           ? Ar.months.of(days ~/ 30)
           : Ar.days.of(math.max(1, days));
-      body = _pick([
+      body = _p.pick([
         'يغطي صرفك المعتاد لمدة $cover تقريباً.',
         'وهو ما يكفي لنحو $cover من صرفك الحالي.',
       ]);
     } else {
-      body = _pick([
+      body = _p.pick([
         'محفوظ بعيداً عن الصرف اليومي.',
         'مبلغ جاهز لأهدافك القادمة.',
       ]);
     }
     return (
       kind: 'savings',
-      title: _pick([
-        'رصيد توفيرك ${_m(facts.savingsBalance)}',
-        'لديك ${_m(facts.savingsBalance)} في التوفير',
+      title: _p.pick([
+        'رصيد توفيرك ${_p.money(facts.savingsBalance)}',
+        'لديك ${_p.money(facts.savingsBalance)} في التوفير',
       ]),
       body: body,
     );
   }
 
+  // The month's total so far and its biggest category.
   ReminderText? _monthTotal() {
     if (facts.monthSpent <= 0) return null;
-    final top = facts.monthCategories.entries.isEmpty
-        ? null
-        : facts.monthCategories.entries.reduce((a, b) => a.value >= b.value ? a : b);
+    final top = largestCategory(facts.monthCategories);
     return (
       kind: 'month',
-      title: _pick([
-        'صرفك هذا الشهر ${_m(facts.monthSpent)}',
-        'إجمالي الشهر حتى الآن ${_m(facts.monthSpent)}',
+      title: _p.pick([
+        'صرفك هذا الشهر ${_p.money(facts.monthSpent)}',
+        'إجمالي الشهر حتى الآن ${_p.money(facts.monthSpent)}',
       ]),
       body: top == null
-          ? 'بمعدل ${_m(facts.dailyAverageThisMonth)} يومياً.'
-          : _pick([
-              'أكبر بند ${Ar.category(top.key)} بنسبة ${_pct(top.value / facts.monthSpent)}.',
-              'بمعدل ${_m(facts.dailyAverageThisMonth)} يومياً.',
+          ? 'بمعدل ${_p.money(facts.dailyAverageThisMonth)} يومياً.'
+          : _p.pick([
+              'أكبر بند ${Ar.category(top.key)} بنسبة ${_p.percent(top.value / facts.monthSpent)}.',
+              'بمعدل ${_p.money(facts.dailyAverageThisMonth)} يومياً.',
             ]),
     );
   }
@@ -301,26 +312,26 @@ class ReminderDigest {
     if (before > 0 && (now - before).abs() / before >= 0.1) {
       final change = (now - before) / before;
       body = change > 0
-          ? _pick([
-              'أكثر بنسبة ${_pct(change)} من الأسبوع الماضي.',
-              'بزيادة ${_m(now - before)} عن الأسبوع الماضي.',
+          ? _p.pick([
+              'أكثر بنسبة ${_p.percent(change)} من الأسبوع الماضي.',
+              'بزيادة ${_p.money(now - before)} عن الأسبوع الماضي.',
             ])
-          : _pick([
-              'أقل بنسبة ${_pct(change)} من الأسبوع الماضي.',
-              'بتوفير ${_m(before - now)} مقارنةً بالأسبوع الماضي.',
+          : _p.pick([
+              'أقل بنسبة ${_p.percent(change)} من الأسبوع الماضي.',
+              'بتوفير ${_p.money(before - now)} مقارنةً بالأسبوع الماضي.',
             ]);
     } else {
-      body = _pick([
+      body = _p.pick([
         'قريب من صرف الأسبوع الماضي.',
         'في مستوى الأسبوع الماضي تقريباً.',
       ]);
     }
     return (
       kind: 'weekly',
-      title: _pick([
-        'صرفك هذا الأسبوع ${_m(now)}',
-        'حصيلة أسبوعك: ${_m(now)}',
-        'أسبوعك في رقم: ${_m(now)}',
+      title: _p.pick([
+        'صرفك هذا الأسبوع ${_p.money(now)}',
+        'حصيلة أسبوعك: ${_p.money(now)}',
+        'أسبوعك في رقم: ${_p.money(now)}',
       ]),
       body: body,
     );
@@ -328,26 +339,16 @@ class ReminderDigest {
 
   /// The evening streak reminder, written as a fact about the streak.
   /// Needs no ledger, so it can be written without SmartFacts.
-  static ReminderText streakText(int count, {int? seed}) =>
-      _StreakText(math.Random(seed)).text(count);
-}
-
-class _StreakText {
-  final math.Random _random;
-
-  _StreakText(this._random);
-
-  T _pick<T>(List<T> options) => options[_random.nextInt(options.length)];
-
-  ReminderText text(int count) {
+  static ReminderText streakText(int count, {int? seed}) {
+    final phrasing = InsightPhrasing('', math.Random(seed));
     final run = Ar.consecutiveDays.of(count);
     return (
       kind: 'streak',
-      title: _pick([
+      title: phrasing.pick([
         'سلسلة من $run في وفّر',
         'سلسلتك مستمرة منذ ${Ar.days.of(count)}',
       ]),
-      body: _pick([
+      body: phrasing.pick([
         'يوم إضافي يرفعها إلى ${Ar.days.of(count + 1)}.',
         'يوم آخر يجعلها ${Ar.days.of(count + 1)}.',
       ]),

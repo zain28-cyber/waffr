@@ -1,3 +1,8 @@
+"""Shared feed data: news articles and exchange rate snapshots.
+
+Anyone may read these tables; only the server writes them.
+"""
+
 from datetime import datetime
 from decimal import Decimal
 
@@ -8,6 +13,8 @@ from database import RATE, Base, utc_now
 
 
 class NewsArticle(Base):
+    """One economic news article from an official feed."""
+
     __tablename__ = "news_articles"
     __table_args__ = (
         UniqueConstraint("guid", name="uq_news_articles_guid"),
@@ -33,6 +40,8 @@ class NewsArticle(Base):
 
 
 class ExchangeRate(Base):
+    """A buy/sell rate snapshot for one currency from one source."""
+
     __tablename__ = "exchange_rates"
     __table_args__ = (
         UniqueConstraint(

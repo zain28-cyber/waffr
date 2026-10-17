@@ -3,10 +3,11 @@
 import 'package:flutter/material.dart';
 import 'package:waffr/widgets/containers/app_empty_state.dart';
 import 'package:waffr/data/models/news_article.dart';
-import 'package:waffr/core/theme/app_color.dart';
 import 'package:waffr/core/utils/money.dart';
 import 'package:waffr/widgets/containers/glass_sheet.dart';
+import 'package:waffr/core/theme/app_palette.dart';
 
+/// Opens the full news list for [articles] in a tall glass sheet.
 Future<void> showNewsSheet(
   BuildContext context, {
   required List<NewsArticle> articles,
@@ -18,7 +19,8 @@ Future<void> showNewsSheet(
   );
 }
 
-// Scrollable list of headlines with source and timestamp.
+/// Scrollable list of headlines with source and timestamp, or an empty
+/// state when there are no articles.
 class _NewsSheet extends StatelessWidget {
   final List<NewsArticle> articles;
 
@@ -26,11 +28,9 @@ class _NewsSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textPrimary =
-        isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final textSecondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final palette = AppPalette.of(context);
+    final textPrimary = palette.textPrimary;
+    final textSecondary = palette.textSecondary;
 
     return GlassSheetFixedBody(
       header: const GlassSheetHeader(
@@ -65,7 +65,8 @@ class _NewsSheet extends StatelessWidget {
   }
 }
 
-// Title, source, and published time for one article in the sheet.
+/// Title, optional body, then source and published time for one article in
+/// the sheet.
 class _NewsArticleBlock extends StatelessWidget {
   final NewsArticle article;
   final Color textPrimary;
@@ -85,7 +86,8 @@ class _NewsArticleBlock extends StatelessWidget {
         Text(
           article.title,
           style: TextStyle(
-            fontFamily: 'Outfit', fontFamilyFallback: ['Tajawal'],
+            fontFamily: 'Outfit',
+            fontFamilyFallback: ['Tajawal'],
             fontSize: 15,
             fontWeight: FontWeight.w700,
             color: textPrimary,
@@ -97,7 +99,8 @@ class _NewsArticleBlock extends StatelessWidget {
           Text(
             article.body,
             style: TextStyle(
-              fontFamily: 'Outfit', fontFamilyFallback: ['Tajawal'],
+              fontFamily: 'Outfit',
+              fontFamilyFallback: ['Tajawal'],
               fontSize: 13.5,
               fontWeight: FontWeight.w400,
               color: textPrimary.withValues(alpha: 0.82),
@@ -109,7 +112,8 @@ class _NewsArticleBlock extends StatelessWidget {
         Text(
           '${article.source} · ${formatDate(article.publishedAt)} · ${formatTime(article.publishedAt)}',
           style: TextStyle(
-            fontFamily: 'Outfit', fontFamilyFallback: ['Tajawal'],
+            fontFamily: 'Outfit',
+            fontFamilyFallback: ['Tajawal'],
             fontSize: 12,
             fontWeight: FontWeight.w500,
             color: textSecondary,

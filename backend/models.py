@@ -1,3 +1,5 @@
+"""The account, its settings row, and in-app notifications."""
+
 from datetime import datetime
 from decimal import Decimal
 
@@ -23,6 +25,8 @@ from database import (
 
 
 class User(TimestampMixin, Base):
+    """An account: login, profile, wrapped data key and sign-in state."""
+
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
@@ -106,6 +110,8 @@ class User(TimestampMixin, Base):
 
 
 class UserSettings(TimestampMixin, Base):
+    """One row per user: notification flags, income, currencies, streak."""
+
     __tablename__ = "user_settings"
     __table_args__ = (
         UniqueConstraint("user_id", name="uq_user_settings_user"),
@@ -193,6 +199,8 @@ class UserSettings(TimestampMixin, Base):
 
 
 class Notification(ClientIdMixin, SoftDeleteMixin, TimestampMixin, Base):
+    """An in-app notification; event_key stops duplicates."""
+
     __tablename__ = "notifications"
     __table_args__ = (
         UniqueConstraint("user_id", "client_id", name="uq_notifications_user_client"),

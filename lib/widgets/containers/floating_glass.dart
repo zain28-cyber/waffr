@@ -1,3 +1,6 @@
+// Floating liquid-glass chrome: the blurred pill behind the bottom bar and
+// the pinned period selector, and its selection bubble.
+
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
@@ -7,9 +10,13 @@ import 'package:waffr/widgets/containers/glass.dart';
 /// Shared floating chrome for navigation and pinned period controls.
 /// Keep the blur clipped to this pill instead of blurring the whole page.
 class FloatingGlass extends StatelessWidget {
+  /// Content inside the glass.
   final Widget child;
+
+  /// Corner radius of the pill.
   final BorderRadius radius;
 
+  /// Creates a [FloatingGlass].
   const FloatingGlass({
     super.key,
     required this.child,
@@ -59,8 +66,10 @@ class FloatingGlass extends StatelessWidget {
 
 /// The softly tinted selection bubble shared with the floating navigation.
 class FloatingGlassHighlight extends StatelessWidget {
+  /// Corner radius of the bubble.
   final double radius;
 
+  /// Creates a [FloatingGlassHighlight].
   const FloatingGlassHighlight({super.key, required this.radius});
 
   @override

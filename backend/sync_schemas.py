@@ -1,3 +1,10 @@
+"""Bodies for POST /sync: one *SyncIn model per collection, the request and
+the response.
+
+Rows arrive as plain dicts and are parsed one by one in routers/sync.py, so
+a bad row gets a 422 that names it.
+"""
+
 from datetime import datetime
 from decimal import Decimal
 from typing import Annotated
@@ -18,11 +25,15 @@ ID_MAX = 64
 
 
 class TombstoneIn(CleanModel):
+    """A deleted row: its client id and when it was deleted."""
+
     client_id: str = Field(min_length=1, max_length=ID_MAX)
     deleted_at: datetime | None = None
 
 
 class TransactionSyncIn(CleanModel):
+    """A transaction as the app pushes it."""
+
     client_id: str = Field(min_length=1, max_length=ID_MAX)
     type: str = Field(pattern="^(income|expense)$")
     amount: Decimal = Field(gt=0, le=MONEY_MAX)
@@ -46,6 +57,8 @@ class TransactionSyncIn(CleanModel):
 
 
 class GoalSyncIn(CleanModel):
+    """A savings goal as the app pushes it."""
+
     client_id: str = Field(min_length=1, max_length=ID_MAX)
     name: str = Field(min_length=1, max_length=PRIVATE_TEXT_MAX)
     target_amount: Decimal = Field(gt=0, le=MONEY_MAX)
@@ -79,6 +92,8 @@ class GoalSyncIn(CleanModel):
 
 
 class TransferSyncIn(CleanModel):
+    """A savings transfer as the app pushes it; the goal is named by client id."""
+
     client_id: str = Field(min_length=1, max_length=ID_MAX)
     goal_client_id: str | None = Field(default=None, max_length=ID_MAX)
     amount: Decimal = Field(gt=0, le=MONEY_MAX)
@@ -106,12 +121,16 @@ class TransferSyncIn(CleanModel):
 
 
 class ShoppingListSyncIn(CleanModel):
+    """A shopping list as the app pushes it."""
+
     client_id: str = Field(min_length=1, max_length=ID_MAX)
     name: str = Field(min_length=1, max_length=100)
     updated_at: datetime | None = None
 
 
 class ShoppingItemSyncIn(CleanModel):
+    """A shopping item as the app pushes it; the list is named by client id."""
+
     client_id: str = Field(min_length=1, max_length=ID_MAX)
     list_client_id: str = Field(default="shopping_default", max_length=ID_MAX)
     name: str = Field(min_length=1, max_length=PRIVATE_TEXT_MAX)
@@ -130,6 +149,8 @@ class ShoppingItemSyncIn(CleanModel):
 
 
 class RecurringSyncIn(CleanModel):
+    """A recurring expense as the app pushes it."""
+
     client_id: str = Field(min_length=1, max_length=ID_MAX)
     amount: Decimal = Field(gt=0, le=MONEY_MAX)
     category: str = Field(max_length=FREE_TEXT_MAX)
@@ -156,6 +177,8 @@ class RecurringSyncIn(CleanModel):
 
 
 class NotificationSyncIn(CleanModel):
+    """A notification as the app pushes it."""
+
     client_id: str = Field(min_length=1, max_length=ID_MAX)
     type: str = Field(max_length=50)
     title: str = Field(max_length=FREE_TEXT_MAX)
@@ -169,6 +192,8 @@ class NotificationSyncIn(CleanModel):
 
 
 class CategorySyncIn(CleanModel):
+    """A custom category as the app pushes it."""
+
     client_id: str = Field(min_length=1, max_length=ID_MAX)
     label: str = Field(min_length=1, max_length=PRIVATE_TEXT_MAX)
     icon_index: int = Field(default=0, ge=-INT_MAX, le=INT_MAX)
@@ -177,6 +202,8 @@ class CategorySyncIn(CleanModel):
 
 
 class PresetSyncIn(CleanModel):
+    """An expense preset as the app pushes it."""
+
     client_id: str = Field(min_length=1, max_length=ID_MAX)
     amount: Decimal = Field(gt=0, le=MONEY_MAX)
     multiplier: int = Field(default=1, ge=1, le=10)
@@ -200,6 +227,8 @@ class PresetSyncIn(CleanModel):
 
 
 class SettingsSyncIn(CleanModel):
+    """The settings object; fields left out are not changed."""
+
     notifications_muted: bool | None = None
     notifications_enabled: bool | None = None
     notify_low_balance: bool | None = None
@@ -238,11 +267,15 @@ class SettingsSyncIn(CleanModel):
 
 # Rows are cleaned when each one is parsed into its *SyncIn model.
 class SyncCollectionIn(BaseModel):
+    """One collection of a push: rows to upsert and tombstones."""
+
     upserts: list[dict] = Field(default_factory=list, max_length=SYNC_ROWS_MAX)
     deletes: list[TombstoneIn] = Field(default_factory=list, max_length=SYNC_ROWS_MAX)
 
 
 class SyncRequest(BaseModel):
+    """Body of POST /sync."""
+
     last_sync_at: datetime | None = None
     transactions: SyncCollectionIn = Field(default_factory=SyncCollectionIn)
     savings_goals: SyncCollectionIn = Field(default_factory=SyncCollectionIn)
@@ -257,6 +290,8 @@ class SyncRequest(BaseModel):
 
 
 class SettingsSyncOut(BaseModel):
+    """The full settings object returned by every sync."""
+
     notifications_enabled: bool
     notifications_muted: bool
     notify_low_balance: bool
@@ -292,11 +327,15 @@ class SettingsSyncOut(BaseModel):
 
 
 class SyncCollectionOut(BaseModel):
+    """One collection of the reply: live rows and tombstones."""
+
     upserts: list[dict] = Field(default_factory=list)
     deletes: list[TombstoneIn] = Field(default_factory=list)
 
 
 class SyncResponse(BaseModel):
+    """Reply of POST /sync. ``server_time`` is the next last_sync_at."""
+
     server_time: datetime
     transactions: SyncCollectionOut
     savings_goals: SyncCollectionOut

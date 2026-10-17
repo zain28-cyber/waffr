@@ -1,3 +1,10 @@
+"""Database engine, session factory, shared column mixins and startup migrations.
+
+``create_tables`` creates missing tables, then ``_ensure_schema_updates``
+adds columns and indexes that older databases lack, and finally installs
+the row security policies (row_security.py).
+"""
+
 import os
 import uuid
 from datetime import datetime, timezone
@@ -36,14 +43,18 @@ row_security.attach(SessionLocal)
 
 
 class Base(DeclarativeBase):
+    """Declarative base of every model."""
+
     pass
 
 
 def utc_now() -> datetime:
+    """The current time in UTC."""
     return datetime.now(timezone.utc)
 
 
 def new_client_id() -> str:
+    """A fresh UUID string for rows created without a client id."""
     return str(uuid.uuid4())
 
 
@@ -72,6 +83,8 @@ def scrub_private_text(row) -> None:
 
 
 class TimestampMixin:
+    """created_at and updated_at, both set by the server when not given."""
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,
@@ -86,6 +99,8 @@ class TimestampMixin:
 
 
 class CreatedAtMixin:
+    """created_at only."""
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,
@@ -94,6 +109,8 @@ class CreatedAtMixin:
 
 
 class ClientIdMixin:
+    """The id the app gave the row; unique per user."""
+
     client_id: Mapped[str] = mapped_column(
         String(64),
         default=new_client_id,
@@ -102,6 +119,8 @@ class ClientIdMixin:
 
 
 class SoftDeleteMixin:
+    """deleted_at: set instead of deleting, so other devices hear of it."""
+
     deleted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
@@ -110,6 +129,7 @@ class SoftDeleteMixin:
 
 
 def get_db():
+    """FastAPI dependency: one session per request, closed afterwards."""
     db = SessionLocal()
     try:
         yield db
@@ -118,6 +138,7 @@ def get_db():
 
 
 def create_tables() -> None:
+    """Create missing tables, run the migrations and install row security."""
     Base.metadata.create_all(bind=engine)
     _ensure_schema_updates()
 

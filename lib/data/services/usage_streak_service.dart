@@ -11,20 +11,33 @@ import 'package:waffr/core/prefs/app_prefs.dart';
 
 /// A streak that just grew by a day on this device: [from] to [to].
 class StreakIncrease {
+  /// Streak before today.
   final int from;
+
+  /// Streak after today counted.
   final int to;
 
+  /// An increase.
   const StreakIncrease({required this.from, required this.to});
 }
 
+/// The daily-use streak, saved in prefs and merged with the account.
 class UsageStreakService extends ChangeNotifier {
   UsageStreakService._();
 
+  /// The app-wide service.
   static final UsageStreakService instance = UsageStreakService._();
 
+  /// Prefs key of the streak count.
   static const String countKey = 'waffer_streak_count';
+
+  /// Prefs key of the last counted day (YYYY-MM-DD).
   static const String lastDayKey = 'waffer_streak_last_date';
+
+  /// Prefs key of the first day of use.
   static const String startedKey = 'waffer_usage_started_at';
+
+  /// Prefs key of the "server may be behind" flag.
   static const String unsyncedKey = 'waffer_streak_unsynced';
 
   /// Clock for "today"; tests replace it.
@@ -42,6 +55,7 @@ class UsageStreakService extends ChangeNotifier {
   // Bumped on every change the server has not seen yet.
   int _revision = 0;
 
+  /// True once loaded from prefs.
   bool get isLoaded => _loaded;
 
   /// Days in a row as of today. A skipped day reads as 0 until the next
@@ -54,14 +68,16 @@ class UsageStreakService extends ChangeNotifier {
   /// Pass to [markSynced] after a sync that carried [syncFields].
   int get revision => _revision;
 
+  /// The last counted day.
   DateTime? get lastDay => _state.lastDay;
 
+  /// The first day of use.
   DateTime? get startedAt => _state.startedAt;
 
-  String get label => count > 1 ? '$count أيام متواصلة' : 'اليوم الأول';
+  /// "اليوم الأول", or the count of days in a row.
+  String get label => StreakSnapshot(count: count).label;
 
-  String? get lastDayKeyValue => StreakSnapshot.dayKey(_state.lastDay);
-
+  /// Loads from prefs once.
   Future<void> ensureLoaded() => _loader ??= _load();
 
   /// Records today once. Same calendar day does not increase the count.
@@ -128,6 +144,7 @@ class UsageStreakService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The streak fields of the settings push.
   Map<String, dynamic> syncFields() {
     return {
       if (_state.startedAt != null)
@@ -154,6 +171,7 @@ class UsageStreakService extends ChangeNotifier {
     return _unsynced;
   }
 
+  /// Forgets memory so the next load re-reads prefs.
   void resetCache() {
     _state = const StreakSnapshot();
     _loaded = false;

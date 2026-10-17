@@ -1,3 +1,9 @@
+"""The FastAPI app: startup, middleware, routers, and the /auth routes.
+
+Importing this module creates the tables and policies. Run it with
+``uvicorn main:app`` from the backend folder.
+"""
+
 import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
@@ -118,14 +124,17 @@ app.include_router(sync_router)
 
 @app.get("/")
 def root():
+    """Health check for Render."""
     return {"message": "Waffr API is running"}
 
 
 @app.post("/auth/register", response_model=AuthResponse)
 def register(data: RegisterRequest, request: Request, db: Session = Depends(get_db)):
+    """Create an account and its settings row; return a token."""
     enforce_ip(request, "register", REGISTER_IP)
     enforce(request, "register:all", REGISTER_ALL)
 
+    # One account per email.
     if user_id_for_email(db, data.email) is not None:
         log_event("register_email_taken", request=request, email=data.email)
         raise HTTPException(
@@ -133,6 +142,7 @@ def register(data: RegisterRequest, request: Request, db: Session = Depends(get_
             detail="Email already registered",
         )
 
+    # Profile fields: blanks are stored as NULL.
     name = _clean(data.name)
     gender = _clean(data.gender)
     birthdate = _clean(data.birthdate)
@@ -175,6 +185,7 @@ def register(data: RegisterRequest, request: Request, db: Session = Depends(get_
     db.refresh(user)
     log_event("register", request=request, user_id=user.id)
 
+    # Signed in straight away.
     token = create_access_token(user)
 
     return {
@@ -200,6 +211,11 @@ def _login_failed(request: Request, email: str, user_id: int | None) -> HTTPExce
 
 @app.post("/auth/login", response_model=AuthResponse)
 def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
+    """Check the password and return a token.
+
+    Wrong passwords count per email and per account; five in a row lock
+    sign-in for LOGIN_LOCKOUT.
+    """
     enforce_ip(request, "login", LOGIN_IP)
     # Counts wrong passwords per email whether or not the account exists, so
     # the 429 does not reveal which emails are registered.
@@ -209,6 +225,7 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
         log_event("login_throttled", request=request, level=logging.WARNING, email=data.email)
         raise too_many(wait)
 
+    # The account, and whether it is locked.
     user_id = user_id_for_email(db, data.email)
     if user_id is None:
         burn_password_check(data.password)
@@ -221,6 +238,7 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
         log_event("login_locked", request=request, level=logging.WARNING, user_id=user.id)
         raise too_many((user.locked_until - now).total_seconds())
 
+    # Wrong password: count it, and lock after MAX_FAILED_LOGINS in a row.
     if not verify_password(data.password, user.password_hash):
         user.failed_login_count += 1
         if user.failed_login_count >= MAX_FAILED_LOGINS:
@@ -230,6 +248,7 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
         db.commit()
         raise _login_failed(request, data.email, user.id)
 
+    # Right password: clear the failure count and any expired lock.
     if user.failed_login_count or user.locked_until is not None:
         user.failed_login_count = 0
         user.locked_until = None
@@ -289,6 +308,7 @@ def _data_key(user: User) -> dict | None:
 
 @app.get("/auth/me")
 def get_me(current_user: User = Depends(get_current_user)):
+    """The signed-in user's profile and data key."""
     return _user_payload(current_user)
 
 
@@ -299,6 +319,7 @@ def store_data_key(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Store the wrapped data key once; 409 when one is already set."""
     enforce(request, f"data-key:user:{current_user.id}", DATA_KEY_USER)
     # Set once. Replacing it would leave the encrypted rows unreadable.
     if current_user.wrapped_key:
@@ -318,6 +339,7 @@ def forgot_password(
     request: Request,
     background_tasks: BackgroundTasks,
 ):
+    """Email a reset code. Answers the same whether or not the email exists."""
     if not password_reset.email_configured():
         raise HTTPException(status_code=503, detail="Email is not configured")
     enforce_ip(request, "forgot", FORGOT_IP)
@@ -336,9 +358,15 @@ def reset_password(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    """Set a new password with an emailed code.
+
+    Signs out every device and drops the data key and the text it sealed,
+    which the new password cannot unwrap.
+    """
     enforce_ip(request, "reset", RESET_IP)
     enforce(request, email_key("reset", data.email), RESET_EMAIL)
 
+    # The account and its code; a failed check still counts the attempt.
     user_id = user_id_for_email(db, data.email)
     if user_id is None:
         burn_password_check(data.code)
@@ -351,6 +379,7 @@ def reset_password(
         log_event("password_reset_failed", request=request, level=logging.WARNING, user_id=user.id)
         raise HTTPException(status_code=400, detail="Invalid or expired code")
 
+    # New password; everything tied to the old one is dropped.
     user.password_hash = hash_password(data.new_password)
     # Every signed-in device has to sign in again.
     user.token_version += 1
@@ -377,6 +406,7 @@ def change_password(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Change the password; other devices are signed out."""
     enforce(request, f"password-change:user:{current_user.id}", PASSWORD_CHANGE_USER)
     if not verify_password(data.current_password, current_user.password_hash):
         log_event(
@@ -411,6 +441,7 @@ def delete_account(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Delete the account and every row it owns."""
     enforce(request, f"account-delete:user:{current_user.id}", ACCOUNT_DELETE_USER)
     user_id = current_user.id
     # Rows owned by the user go with it (ORM cascade and ON DELETE CASCADE).
@@ -424,14 +455,17 @@ def delete_account(
 # and removes the photo on its next sync.
 @app.put("/auth/photo")
 def upload_photo(_current_user: User = Depends(get_current_user)):
+    """Legacy: accept and drop a photo upload."""
     return photo_meta()
 
 
 @app.get("/auth/photo")
 def download_photo(_current_user: User = Depends(get_current_user)):
+    """Legacy: there is never a photo."""
     raise HTTPException(status_code=404, detail="No profile photo")
 
 
 @app.delete("/auth/photo")
 def delete_photo(_current_user: User = Depends(get_current_user)):
+    """Legacy: nothing to delete."""
     return photo_meta()

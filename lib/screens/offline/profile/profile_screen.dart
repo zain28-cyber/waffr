@@ -1,4 +1,6 @@
-// Usage profile. Account editing stays in Settings.
+// Profile tab: identity header, usage streak, usage duration, smart analysis
+// button and usage counts, drawn over the breathing wallet backdrop whose
+// mouth follows the financial health band. Account editing stays in Settings.
 
 import 'dart:math' as math;
 import 'dart:async';
@@ -24,23 +26,32 @@ import 'package:waffr/widgets/containers/glass.dart';
 import 'package:waffr/core/insights/smart/smart_insight.dart';
 import 'package:waffr/widgets/smart/smart_analysis_button.dart';
 
+/// The profile tab of the app shell. Kept alive; it only replays motion and
+/// recomputes the health band while it is the visible tab.
 class ProfileScreen extends StatefulWidget {
+  /// The shell's selected tab; this screen is tab 4.
   final ValueNotifier<int> tabIndex;
 
+  /// Creates a [ProfileScreen].
   const ProfileScreen({super.key, required this.tabIndex});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
+/// State of [ProfileScreen]. Listens to the tab index and to the stores the
+/// health score reads, and owns the coalescing health refresh timer.
 class _ProfileScreenState extends State<ProfileScreen>
     with AutomaticKeepAliveClientMixin {
+  /// This screen's index in the shell's tab bar.
   static const int _tab = 4;
 
   final TransactionStore _store = TransactionStore.instance;
 
-  // Bumped each time the tab is opened so the streak card plays again.
+  /// Bumped each time the tab is reopened so the streak card plays again.
   int _streakReplay = 0;
+
+  /// What the cards read from.
   late final Listenable _data = Listenable.merge([
     _store,
     CurrencyStore.instance,
@@ -48,21 +59,29 @@ class _ProfileScreenState extends State<ProfileScreen>
     ProfileIdentity.instance,
   ]);
 
-  // What the health score reads from.
+  /// What the health score reads from.
   late final Listenable _healthData = Listenable.merge([
     _store,
     CurrencyStore.instance,
     RecurringExpenseStore.instance,
   ]);
 
-  // Band behind the wallet's smile; null until the first read.
+  /// Band behind the wallet's smile; null until the first read.
   HealthBand? _health;
+
+  /// Data changed since the last health read.
   bool _healthDirty = true;
+
+  /// A health read is in flight; serializes reads.
   bool _healthLoading = false;
+
+  /// Zero-delay timer that coalesces bursts of change notifications.
   Timer? _healthRefresh;
 
-  // Whether this tab is the one on screen.
+  /// Whether this tab is the one on screen.
   late bool _active = widget.tabIndex.value == _tab;
+
+  /// False while an ancestor TickerMode disables animation (hidden page).
   bool _tickerEnabled = true;
 
   @override
@@ -104,11 +123,13 @@ class _ProfileScreenState extends State<ProfileScreen>
     super.dispose();
   }
 
-  // True after the user has gone to another tab. Coming back replays the
-  // streak card; the first arrival does not (the card already animates on
-  // its first build, so replaying then made it play twice).
+  /// True after the user has gone to another tab. Coming back replays the
+  /// streak card; the first arrival does not (the card already animates on
+  /// its first build, so replaying then made it play twice).
   bool _leftTab = false;
 
+  /// Tracks visibility; on return reloads the identity, replays the streak
+  /// and refreshes health.
   void _onTab() {
     if (widget.tabIndex.value != _tab) {
       _leftTab = true;
@@ -125,8 +146,8 @@ class _ProfileScreenState extends State<ProfileScreen>
     _queueHealth();
   }
 
-  // Store hydration and a sync can emit several notifications together.
-  // Collapse those into one read and defer all health work on hidden tabs.
+  /// Store hydration and a sync can emit several notifications together.
+  /// Collapse those into one read and defer all health work on hidden tabs.
   void _queueHealth() {
     _healthDirty = true;
     if (!_active ||
@@ -138,8 +159,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     _healthRefresh = Timer(Duration.zero, _readHealth);
   }
 
-  // Same score as the smart analysis. With nothing logged yet the wallet
-  // keeps the logo's own smile.
+  /// Same score as the smart analysis. With nothing logged yet the wallet
+  /// keeps the logo's own smile. A result is dropped if data changed while
+  /// it loaded; the finally block then queues a fresh read.
   Future<void> _readHealth() async {
     if (!mounted ||
         !_active ||
@@ -207,6 +229,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  /// Foreground cards: header, streak, duration + smart button, stats.
   Widget _cards(AppPalette palette) {
     return ActiveListenableBuilder(
       listenable: _data,
@@ -255,6 +278,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 }
 
+/// Avatar with display name and, when signed in, the email.
 class _ProfileHeader extends StatelessWidget {
   final ProfileIdentity identity;
   final AppPalette palette;
@@ -323,6 +347,7 @@ class _ProfileHeader extends StatelessWidget {
   }
 }
 
+/// "Usage duration" caption over how long the app has been used.
 class _UsageDuration extends StatelessWidget {
   final String text;
   final AppPalette palette;
@@ -361,6 +386,7 @@ class _UsageDuration extends StatelessWidget {
   }
 }
 
+/// Four count tiles: expenses, incomes, goals and savings moves.
 class _UsageStats extends StatelessWidget {
   final ProfileSnapshot snapshot;
   final AppPalette palette;
@@ -408,6 +434,7 @@ class _UsageStats extends StatelessWidget {
   }
 }
 
+/// One count with its label in a glass tile.
 class _StatTile extends StatelessWidget {
   final int value;
   final String label;

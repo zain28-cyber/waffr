@@ -7,26 +7,43 @@ import 'package:waffr/widgets/containers/glass_sheet.dart';
 
 /// Returned when the user clears a previously set amount (allowClear path).
 class AmountDialogCleared {
+  /// Currency whose amount was cleared.
   final String currencyCode;
+
+  /// Creates a [AmountDialogCleared].
   const AmountDialogCleared(this.currencyCode);
 }
 
 /// Successful save: parsed amount plus the currency chosen in the dialog.
 class EditAmountResult {
+  /// The new amount.
   final double amount;
+
+  /// The chosen currency.
   final String currencyCode;
 
+  /// Creates a [EditAmountResult].
   const EditAmountResult(this.amount, this.currencyCode);
 }
 
 /// Amount + currency editor with optional clear action.
 class EditAmountDialog extends StatefulWidget {
+  /// Dialog title.
   final String title;
+
+  /// Amount filled in when it opens (0 leaves it empty).
   final double initialAmount;
+
+  /// Accent of the field and buttons.
   final Color accent;
+
+  /// Adds a "clear" action that returns [AmountDialogCleared].
   final bool allowClear;
+
+  /// Starting currency; defaults to the active one.
   final String? currencyCode;
 
+  /// Creates a [EditAmountDialog].
   const EditAmountDialog({
     super.key,
     required this.title,
@@ -40,6 +57,7 @@ class EditAmountDialog extends StatefulWidget {
   State<EditAmountDialog> createState() => _EditAmountDialogState();
 }
 
+/// State of [EditAmountDialog].
 class _EditAmountDialogState extends State<EditAmountDialog> {
   static const double _maxAmount = 999999999;
 
@@ -97,11 +115,7 @@ class _EditAmountDialogState extends State<EditAmountDialog> {
             onPressed: () =>
                 Navigator.of(context).pop(AmountDialogCleared(_currencyCode)),
           ),
-        AppDialogAction(
-          label: 'حفظ',
-          primary: true,
-          onPressed: _submit,
-        ),
+        AppDialogAction(label: 'حفظ', primary: true, onPressed: _submit),
       ],
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -117,10 +131,7 @@ class _EditAmountDialogState extends State<EditAmountDialog> {
               if (_error != null) setState(() => _error = null);
             },
             onSubmitted: (_) => _submit(),
-            decoration: InputDecoration(
-              hintText: 'المبلغ',
-              errorText: _error,
-            ),
+            decoration: InputDecoration(hintText: 'المبلغ', errorText: _error),
           ),
           const SizedBox(height: 10),
           Align(

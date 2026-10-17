@@ -4,9 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:waffr/core/sync/auth_session.dart';
 import 'package:waffr/core/prefs/app_prefs.dart';
 
+/// The signed-in state, name and email the profile header shows.
 class ProfileIdentity extends ChangeNotifier {
   ProfileIdentity._();
 
+  /// The app-wide identity.
   static final ProfileIdentity instance = ProfileIdentity._();
 
   String _name = '';
@@ -21,10 +23,13 @@ class ProfileIdentity extends ChangeNotifier {
   /// Loads once if nothing has loaded yet; otherwise returns the last load.
   Future<void> ensureLoaded() => _loader ??= _load();
 
+  /// Saved display name (may be empty).
   String get name => _name;
 
+  /// Account email; empty for guests.
   String get email => _email;
 
+  /// True while a session token is stored.
   bool get isLoggedIn => _loggedIn;
 
   /// The account name while signed in. The name saved from an account
@@ -35,6 +40,7 @@ class ProfileIdentity extends ChangeNotifier {
     return trimmed.isNotEmpty ? trimmed : 'مستخدم وفّر';
   }
 
+  /// The email to show, or null for guests or when unknown.
   String? get displayEmail {
     if (!_loggedIn) return null;
     final trimmed = _email.trim();
@@ -42,11 +48,13 @@ class ProfileIdentity extends ChangeNotifier {
     return trimmed;
   }
 
+  /// Reads the state again (after sign-in, sign-out or edits).
   Future<void> reload() {
     _loader = _load();
     return _loader!;
   }
 
+  /// Forgets everything (local data wipe).
   void reset() {
     _name = '';
     _email = '';

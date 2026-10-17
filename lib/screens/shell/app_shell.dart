@@ -1,3 +1,7 @@
+// The signed-in app shell: header, lazily built tab pager, floating bottom
+// navigation bar, and the background work that runs while the app is open
+// (due periods, reminders, home-widget and notification taps).
+
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -13,7 +17,6 @@ import 'package:waffr/data/services/system_notifications.dart';
 import 'package:waffr/data/services/usage_streak_service.dart';
 import 'package:waffr/data/stores/recurring_expense_store.dart';
 import 'package:waffr/data/stores/transaction_store.dart';
-import 'package:waffr/core/theme/app_color.dart';
 import 'package:waffr/core/theme/app_motion.dart';
 import 'package:waffr/core/utils/app_feedback.dart';
 import 'package:waffr/screens/offline/home/dashboard.dart';
@@ -37,16 +40,24 @@ import 'package:waffr/data/services/smart_settings.dart';
 import 'package:waffr/core/insights/smart/smart_insight.dart';
 import 'package:waffr/core/insights/smart/smart_facts_loader.dart';
 import 'package:waffr/core/insights/smart/reminder_digest.dart';
+import 'package:waffr/core/theme/app_palette.dart';
 
-// Bottom navigation shell. Five tabs: home, report, savings, online, profile.
-// The tab bar floats over the pages; each tab keeps kFloatingNavClearance
-// free at the bottom of its scroll content.
-// Settings and notifications are pushed from the header, not tabs.
+/// Bottom navigation shell. Five tabs: home, report, savings, online, profile.
+/// The tab bar floats over the pages; each tab keeps [kFloatingNavClearance]
+/// free at the bottom of its scroll content.
+/// Settings and notifications are pushed from the header, not tabs.
 class AppShell extends StatefulWidget {
+  /// Current theme mode, handed through to the settings screen.
   final ValueNotifier<ThemeMode> themeNotifier;
+
+  /// Toggles light/dark; handed through to the settings screen.
   final VoidCallback onThemeChanged;
+
+  /// The app's flow-controller state (from `main.dart`), handed to settings
+  /// so it can sign out or refresh the app-lock gate.
   final dynamic appFlowController;
 
+  /// Creates a [AppShell].
   const AppShell({
     super.key,
     required this.themeNotifier,
@@ -58,37 +69,48 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
+/// State of [AppShell]. Owns the page controller, the selected-tab notifier,
+/// the per-minute due-events timer, and the home-widget / notification tap
+/// subscriptions.
 class _AppShellState extends State<AppShell>
     with WidgetsBindingObserver, SingleTickerProviderStateMixin {
+  /// Selected tab; the bar, the tab tickers and the profile page listen.
   final ValueNotifier<int> _tabIndex = ValueNotifier<int>(0);
   final PageController _pageController = PageController();
 
-  // Target page while a tap-driven switch is in flight; pages the pager
-  // passes on the way are not reported as the selected tab.
+  /// Target page while a tap-driven switch is in flight; pages the pager
+  /// passes on the way are not reported as the selected tab.
   int? _animatingToPage;
 
-  // Pager opacity for the fade-through used on tabs that are not neighbors.
+  /// Pager opacity for the fade-through used on tabs that are not neighbors.
   late final AnimationController _pagerFade = AnimationController(
     vsync: this,
     value: 1,
   );
 
+  /// Re-runs [_syncFinancialEvents] every minute while in the foreground.
   Timer? _dueTimer;
+
+  /// Guards [_syncFinancialEvents] against overlapping runs.
   bool _syncingEvents = false;
+
+  /// Home-screen widget taps.
   StreamSubscription<Uri?>? _widgetTaps;
+
+  /// System notification taps.
   StreamSubscription<String>? _notificationTaps;
 
-  // Set when today's open extended the streak; drives the overlay once.
+  /// Set when today's open extended the streak; drives the overlay once.
   StreakIncrease? _streakIncrease;
 
   static const int _tabCount = 5;
 
-  // Lazy tab cache: _tabAt builds a page on first visit and reuses it.
-  // Each tab uses AutomaticKeepAliveClientMixin so scroll position survives
-  // after the first visit; unopened tabs are never built.
+  /// Lazy tab cache: [_tabAt] builds a page on first visit and reuses it.
+  /// Each tab uses AutomaticKeepAliveClientMixin so scroll position survives
+  /// after the first visit; unopened tabs are never built.
   final List<Widget?> _builtTabs = List<Widget?>.filled(_tabCount, null);
 
-  // Creates the page for [index] once, then returns the cached widget.
+  /// Creates the page for [index] once, then returns the cached widget.
   Widget _tabAt(int index) {
     final existing = _builtTabs[index];
     if (existing != null) return existing;
@@ -128,8 +150,8 @@ class _AppShellState extends State<AppShell>
     unawaited(_syncComebackReminders());
   }
 
-  // Reminders that only fire if the app stays closed for days; every open
-  // pushes them forward. Each states a fact from the user's own numbers.
+  /// Reminders that only fire if the app stays closed for days; every open
+  /// pushes them forward. Each states a fact from the user's own numbers.
   Future<void> _syncComebackReminders() async {
     final settings = SmartSettings.instance;
     final notifications = NotificationService.instance;
@@ -138,6 +160,8 @@ class _AppShellState extends State<AppShell>
     (String, String)? soon;
     (String, String)? later;
     (String, String)? weekly;
+    // Pick the first and second reminder from different kinds, plus the
+    // weekly digest; all stay null when alerts are off.
     if (enabled) {
       final facts = await SmartFactsLoader.load();
       final digest = ReminderDigest(facts);
@@ -158,13 +182,14 @@ class _AppShellState extends State<AppShell>
     );
   }
 
-  // Smart reminders open the analysis.
+  /// Smart reminders open the analysis, both on cold launch and while open.
   void _listenToNotificationTaps() {
     final system = SystemNotifications.instance;
     system.launchPayload().then(_openFromNotification);
     _notificationTaps = system.taps.listen(_openFromNotification);
   }
 
+  /// Opens the smart analysis on top of the shell for a smart-reminder tap.
   void _openFromNotification(String? payload) {
     if (payload != SystemNotifications.smartPayload) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -174,7 +199,7 @@ class _AppShellState extends State<AppShell>
     });
   }
 
-  // A tap on a home screen widget opens the app on the matching place.
+  /// A tap on a home screen widget opens the app on the matching place.
   void _listenToWidgetTaps() {
     if (!HomeWidgetSync.supported) return;
     HomeWidget.initiallyLaunchedFromHomeWidget()
@@ -186,6 +211,7 @@ class _AppShellState extends State<AppShell>
     );
   }
 
+  /// Routes a widget deep link (by URI host) to a tab and/or sheet.
   void _openFromWidget(Uri? uri) {
     if (uri == null || uri.host.isEmpty) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -213,6 +239,7 @@ class _AppShellState extends State<AppShell>
     });
   }
 
+  /// (Re)starts the one-minute [_dueTimer].
   void _startDueTimer() {
     _dueTimer?.cancel();
     _dueTimer = Timer.periodic(const Duration(minutes: 1), (_) {
@@ -233,7 +260,7 @@ class _AppShellState extends State<AppShell>
     }
   }
 
-  // Due periods, recurring expenses, streak, and notification evaluation.
+  /// Due periods, recurring expenses, streak, and notification evaluation.
   Future<void> _syncFinancialEvents() async {
     if (_syncingEvents) return;
     _syncingEvents = true;
@@ -257,7 +284,8 @@ class _AppShellState extends State<AppShell>
     }
   }
 
-  // Lets the home screen settle on screen before the overlay starts.
+  /// Shows the streak overlay after a short delay so the home screen can
+  /// settle on screen first.
   Future<void> _showStreakIncrease(StreakIncrease? increase) async {
     if (increase == null) return;
     await Future<void>.delayed(const Duration(milliseconds: 450));
@@ -267,13 +295,11 @@ class _AppShellState extends State<AppShell>
 
   void _openNotifications() {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const NotificationsScreen(),
-      ),
+      MaterialPageRoute<void>(builder: (_) => const NotificationsScreen()),
     );
   }
 
-  // Long press on the bell: mute or unmute without opening the list.
+  /// Long press on the bell: mute or unmute without opening the list.
   Future<void> _toggleNotificationsMuted() async {
     final service = NotificationService.instance;
     await service.ensureLoaded();
@@ -287,6 +313,8 @@ class _AppShellState extends State<AppShell>
     );
   }
 
+  /// Pushes settings, then reloads [ProfileIdentity] in case the account
+  /// changed there.
   Future<void> _openSettings() async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -301,9 +329,9 @@ class _AppShellState extends State<AppShell>
     await ProfileIdentity.instance.reload();
   }
 
-  // The bar highlight moves with the tap. Neighbor tabs slide; farther tabs
-  // fade through, so the pager never sweeps past (and builds) the tabs
-  // between them.
+  /// The bar highlight moves with the tap. Neighbor tabs slide; farther tabs
+  /// fade through, so the pager never sweeps past (and builds) the tabs
+  /// between them.
   void _onTabTapped(int index) {
     if (index == _tabIndex.value && _animatingToPage == null) return;
     if (_animatingToPage == index) return;
@@ -334,7 +362,7 @@ class _AppShellState extends State<AppShell>
         .whenComplete(() => _settleTap(index));
   }
 
-  // Fades the pager out, jumps to [index], and fades back in.
+  /// Fades the pager out, jumps to [index], and fades back in.
   Future<void> _fadeThroughTo(int index) async {
     final reduced = AppMotion.reduced(context);
     if (!reduced) {
@@ -356,19 +384,21 @@ class _AppShellState extends State<AppShell>
     }
   }
 
-  // Tap switch finished; the pager's resting page is the selected tab.
+  /// Tap switch finished; the pager's resting page is the selected tab.
   void _settleTap(int index) {
     if (!mounted) return;
     if (_animatingToPage != index) return;
     _animatingToPage = null;
-    final settled =
-        _pageController.hasClients ? _pageController.page?.round() : null;
+    final settled = _pageController.hasClients
+        ? _pageController.page?.round()
+        : null;
     if (settled != null && settled != _tabIndex.value) {
       _tabIndex.value = settled;
     }
   }
 
-  // Swipe settled (or ignored while a conflicting tap animation is in flight).
+  /// Swipe settled (or ignored while a conflicting tap animation is in
+  /// flight).
   void _onPageChanged(int index) {
     if (_animatingToPage != null && index != _animatingToPage) {
       return;
@@ -392,9 +422,9 @@ class _AppShellState extends State<AppShell>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final palette = AppPalette.of(context);
 
-    final bg = isDark ? AppColors.darkBackground : AppColors.lightBackground;
+    final bg = palette.background;
 
     final increase = _streakIncrease;
 
@@ -409,6 +439,7 @@ class _AppShellState extends State<AppShell>
         body: Stack(
           fit: StackFit.expand,
           children: [
+            // Header (settings, bell, wordmark) above the tab pager.
             SafeArea(
               // The header paints under the status bar so the two read as
               // one surface; it applies the top inset itself.
@@ -435,10 +466,11 @@ class _AppShellState extends State<AppShell>
                       padding: const EdgeInsets.only(top: 6),
                       child: Text(
                         'WAFFR',
-                        style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                          fontFamily: 'BebasNeue',
-                          fontStyle: FontStyle.italic,
-                        ),
+                        style: Theme.of(context).textTheme.displayLarge
+                            ?.copyWith(
+                              fontFamily: 'BebasNeue',
+                              fontStyle: FontStyle.italic,
+                            ),
                       ),
                     ),
                   ),
@@ -477,6 +509,7 @@ class _AppShellState extends State<AppShell>
                 ),
               ),
             ),
+            // One-shot streak celebration over everything.
             if (increase != null)
               Positioned.fill(
                 child: StreakCelebrationOverlay(
@@ -495,9 +528,9 @@ class _AppShellState extends State<AppShell>
   }
 }
 
-// Slides the nav bar away while the keyboard is up so it never covers a
-// field. Only this small widget depends on the keyboard inset, so the
-// shell itself does not rebuild on every keyboard frame.
+/// Slides the nav bar away while the keyboard is up so it never covers a
+/// field. Only this small widget depends on the keyboard inset, so the
+/// shell itself does not rebuild on every keyboard frame.
 class _HideOnKeyboard extends StatelessWidget {
   final Widget child;
 
@@ -523,9 +556,9 @@ class _HideOnKeyboard extends StatelessWidget {
   }
 }
 
-// Floating "liquid glass" tab bar: a blurred, translucent pill over the
-// pages. The highlight follows the pager position, stretching while it moves
-// between tabs and settling round under the selected icon.
+/// Floating "liquid glass" tab bar: a blurred, translucent pill over the
+/// pages. The highlight follows the pager position, stretching while it moves
+/// between tabs and settling round under the selected icon.
 class _BottomNavBar extends StatelessWidget {
   final ValueNotifier<int> tabIndex;
   final int tabCount;
@@ -539,6 +572,7 @@ class _BottomNavBar extends StatelessWidget {
     required this.onTap,
   });
 
+  /// Tab icons, in page order.
   static const List<IconData> _icons = [
     Icons.home_rounded,
     Icons.bar_chart_rounded,
@@ -546,6 +580,8 @@ class _BottomNavBar extends StatelessWidget {
     Icons.public_rounded,
     Icons.person_rounded,
   ];
+
+  /// Screen-reader labels, in page order.
   static const List<String> _labels = [
     'الرئيسية',
     'التقارير',
@@ -559,10 +595,9 @@ class _BottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textPrimary =
-        isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final accent = isDark ? AppColors.darkAccent : AppColors.lightAccent;
+    final palette = AppPalette.of(context);
+    final textPrimary = palette.textPrimary;
+    final accent = palette.accent;
     final rtl = Directionality.of(context) == TextDirection.rtl;
 
     return FloatingGlass(
@@ -575,7 +610,8 @@ class _BottomNavBar extends StatelessWidget {
             return AnimatedBuilder(
               animation: Listenable.merge([pageController, tabIndex]),
               builder: (context, _) {
-                final page = pageController.hasClients &&
+                final page =
+                    pageController.hasClients &&
                         pageController.position.haveDimensions
                     ? (pageController.page ?? tabIndex.value.toDouble())
                     : tabIndex.value.toDouble();
@@ -585,9 +621,7 @@ class _BottomNavBar extends StatelessWidget {
                     Row(
                       children: [
                         for (var i = 0; i < tabCount; i++)
-                          Expanded(
-                            child: _tab(i, page, accent, textPrimary),
-                          ),
+                          Expanded(child: _tab(i, page, accent, textPrimary)),
                       ],
                     ),
                   ],
@@ -600,6 +634,8 @@ class _BottomNavBar extends StatelessWidget {
     );
   }
 
+  /// Highlight bubble for the fractional pager [page]: widest and flattest
+  /// halfway between two tabs, mirrored in RTL.
   Widget _indicator(double page, double slot, bool rtl) {
     final frac = page - page.floorToDouble();
     final stretch = math.sin(frac * math.pi);
@@ -616,6 +652,8 @@ class _BottomNavBar extends StatelessWidget {
     );
   }
 
+  /// One tap target; the icon scales and tints toward [accent] as the
+  /// highlight approaches it.
   Widget _tab(int index, double page, Color accent, Color textPrimary) {
     // 1 under the highlight, 0 one tab away.
     final t = (1 - (page - index).abs()).clamp(0.0, 1.0);
@@ -635,11 +673,7 @@ class _BottomNavBar extends StatelessWidget {
             child: Icon(
               _icons[index],
               size: 25,
-              color: Color.lerp(
-                textPrimary.withValues(alpha: 0.38),
-                accent,
-                t,
-              ),
+              color: Color.lerp(textPrimary.withValues(alpha: 0.38), accent, t),
             ),
           ),
         ),
@@ -648,8 +682,8 @@ class _BottomNavBar extends StatelessWidget {
   }
 }
 
-// Header bell. Unread dot and muted state come from NotificationService.
-// A long press mutes or unmutes.
+/// Header bell. Unread dot and muted state come from NotificationService.
+/// A long press mutes or unmutes.
 class _NotificationsButton extends StatelessWidget {
   final VoidCallback onPressed;
   final VoidCallback onLongPress;

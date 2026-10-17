@@ -1,10 +1,11 @@
-// Smart analysis: "thinks" for a moment, then writes its findings out as
-// if typing them, over a soft moving glow. Cards expand to show the
-// numbers behind each finding and offer the matching action.
+// Smart analysis screen (library root): "thinks" for a moment, then writes
+// its findings out as if typing them, over a soft moving glow. Cards expand
+// to show the numbers behind each finding and offer the matching action.
 
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:waffr/core/insights/smart/insight_engine.dart';
@@ -29,9 +30,14 @@ import 'package:waffr/widgets/containers/glass_sheet.dart';
 import 'package:waffr/widgets/motion/motion.dart';
 import 'package:waffr/widgets/smart/smart_glow.dart';
 
+part 'smart_analysis_cards.dart';
+part 'smart_analysis_thinking.dart';
+
+/// Hero tag shared by the smart analysis button for [scope] and the spark on
+/// this screen's headline.
 String smartSparkHeroTag(InsightScope scope) => 'smart-spark-${scope.name}';
 
-// Opens the analysis with a fade and gentle zoom from the button.
+/// Opens the analysis with a fade and gentle zoom from the button.
 Future<void> openSmartAnalysis(BuildContext context, InsightScope scope) {
   return Navigator.of(context).push(
     PageRouteBuilder<void>(
@@ -56,19 +62,28 @@ Future<void> openSmartAnalysis(BuildContext context, InsightScope scope) {
   );
 }
 
+/// Screen phase: thinking (loading), writing (typing out), done.
 enum _Phase { thinking, writing, done }
 
+/// Full-screen local analysis of the user's finances for one [InsightScope],
+/// built by [InsightEngine] from [SmartFactsLoader] facts. Opened with
+/// [openSmartAnalysis].
 class SmartAnalysisScreen extends StatefulWidget {
+  /// Scope the screen opens on; the user can switch scope with the chips.
   final InsightScope scope;
 
+  /// Creates a [SmartAnalysisScreen].
   const SmartAnalysisScreen({super.key, required this.scope});
 
   @override
   State<SmartAnalysisScreen> createState() => _SmartAnalysisScreenState();
 }
 
+/// State of [SmartAnalysisScreen]. Owns the typing [Ticker], the thinking
+/// line timer and the pause timer between thinking and writing.
 class _SmartAnalysisScreenState extends State<SmartAnalysisScreen>
     with SingleTickerProviderStateMixin {
+  // Rotating status lines shown while thinking.
   static const List<String> _thinkingLines = [
     'أراجع مصاريفك…',
     'أقارن مع الفترات السابقة…',
@@ -77,27 +92,35 @@ class _SmartAnalysisScreenState extends State<SmartAnalysisScreen>
     'أجهّز الاقتراحات…',
   ];
 
+  // Scope currently analysed.
   late InsightScope _scope = widget.scope;
+  // Seeds each report so a rerun can word findings differently.
   final math.Random _seeds = math.Random();
   _Phase _phase = _Phase.thinking;
   SmartReport? _report;
   int _thinkingLine = 0;
 
-  // Characters written so far across the headline, summary and card
-  // bodies, read as one stream.
+  /// Characters written so far across the headline, summary and card
+  /// bodies, read as one stream.
   int _revealed = 0;
+  // Length of the whole stream.
   int _total = 0;
 
-  // Writing speed follows elapsed time, not frames, so a slow device
-  // writes in the same ~3 seconds with bigger steps.
+  /// Writing speed follows elapsed time, not frames, so a slow device
+  /// writes in the same ~3 seconds with bigger steps.
   late final Ticker _typing = createTicker(_onTypingTick);
   double _charsPerMs = 0.15;
 
+  // Rotates the thinking line.
   Timer? _thinkingTicker;
+  // Pause between thinking and writing, and the completer awaiting it.
   Timer? _pause;
   Completer<void>? _pauseDone;
+  // Ticker time of the last typing setState (for the ~30 Hz throttle).
   Duration _lastTypingUpdate = Duration.zero;
+  // Generation counter; a stale run stops when this moves on.
   int _run = 0;
+  // Ids of expanded insight cards (and the health gauge).
   final Set<String> _expanded = {};
 
   @override
@@ -127,8 +150,8 @@ class _SmartAnalysisScreenState extends State<SmartAnalysisScreen>
     super.dispose();
   }
 
-  // Release waiting runs as well as their timers. A canceled generation
-  // resumes only to fail its run/mounted guard, without leaking a delay.
+  /// Release waiting runs as well as their timers. A canceled generation
+  /// resumes only to fail its run/mounted guard, without leaking a delay.
   void _cancelPause() {
     _pause?.cancel();
     final done = _pauseDone;
@@ -137,6 +160,7 @@ class _SmartAnalysisScreenState extends State<SmartAnalysisScreen>
     _pauseDone = null;
   }
 
+  /// Cancellable delay; [_cancelPause] completes it early.
   Future<void> _wait(Duration duration) {
     if (duration == Duration.zero) return Future<void>.value();
     final done = Completer<void>();
@@ -145,7 +169,8 @@ class _SmartAnalysisScreenState extends State<SmartAnalysisScreen>
     return done.future;
   }
 
-  // Thinks, builds a fresh report with a new seed, then types it out.
+  /// Thinks, builds a fresh report with a new seed, then types it out.
+  /// [quick] shortens the thinking pause (scope change, refresh after action).
   Future<void> _generate({bool quick = false}) async {
     final run = ++_run;
     _typing.stop();
@@ -158,10 +183,13 @@ class _SmartAnalysisScreenState extends State<SmartAnalysisScreen>
       _thinkingLine = _seeds.nextInt(_thinkingLines.length);
     });
 
+    // Rotate the thinking line unless motion is reduced.
     if (!AppMotion.reduced(context)) {
       _thinkingTicker = Timer.periodic(const Duration(milliseconds: 650), (_) {
         if (mounted) {
-          setState(() => _thinkingLine = (_thinkingLine + 1) % _thinkingLines.length);
+          setState(
+            () => _thinkingLine = (_thinkingLine + 1) % _thinkingLines.length,
+          );
         }
       });
     }
@@ -169,8 +197,10 @@ class _SmartAnalysisScreenState extends State<SmartAnalysisScreen>
     final facts = await SmartFactsLoader.load();
     // Discard superseded scope requests before doing the analysis.
     if (!mounted || run != _run) return;
-    final report = InsightEngine(facts, seed: _seeds.nextInt(1 << 30))
-        .analyze(_scope);
+    final report = InsightEngine(
+      facts,
+      seed: _seeds.nextInt(1 << 30),
+    ).analyze(_scope);
     final pause = AppMotion.reduced(context)
         ? Duration.zero
         : Duration(milliseconds: quick ? 700 : 1500);
@@ -179,7 +209,9 @@ class _SmartAnalysisScreenState extends State<SmartAnalysisScreen>
     _thinkingTicker?.cancel();
     final reduced = AppMotion.reduced(context);
 
-    final total = report.headline.length +
+    // Health-score text is not typed: the gauge shows it instead.
+    final total =
+        report.headline.length +
         report.summary.length +
         report.insights
             .where((item) => item.id != 'health-score')
@@ -199,8 +231,12 @@ class _SmartAnalysisScreenState extends State<SmartAnalysisScreen>
     _typing.start();
   }
 
+  /// Advances the typed character count from elapsed ticker time.
   void _onTypingTick(Duration elapsed) {
-    final next = math.min(_total, (elapsed.inMilliseconds * _charsPerMs).round());
+    final next = math.min(
+      _total,
+      (elapsed.inMilliseconds * _charsPerMs).round(),
+    );
     // Text layout needn't run at the display's 60/120 Hz. Limit writing
     // updates to ~30 Hz while keeping completion tied to elapsed time.
     if (next < _total &&
@@ -212,6 +248,7 @@ class _SmartAnalysisScreenState extends State<SmartAnalysisScreen>
     if (_revealed >= _total) _finish();
   }
 
+  /// Stops typing and shows everything.
   void _finish() {
     _typing.stop();
     if (_phase == _Phase.done) return;
@@ -222,14 +259,19 @@ class _SmartAnalysisScreenState extends State<SmartAnalysisScreen>
     AppHaptics.success();
   }
 
+  /// Scope chip picked: rerun the analysis for that scope.
   void _selectScope(String label) {
-    final next = InsightScope.values.firstWhere((scope) => scope.label == label);
+    final next = InsightScope.values.firstWhere(
+      (scope) => scope.label == label,
+    );
     if (next == _scope) return;
     AppHaptics.selection();
     _scope = next;
     _generate(quick: true);
   }
 
+  /// Opens the sheet or screen for an insight's action, then reruns the
+  /// analysis if any store changed meanwhile.
   Future<void> _runAction(InsightAction action) async {
     AppHaptics.selection();
     // Rerun the analysis afterwards only if the action changed any data;
@@ -240,40 +282,44 @@ class _SmartAnalysisScreenState extends State<SmartAnalysisScreen>
       TransactionStore.instance,
       RecurringExpenseStore.instance,
       ShoppingListStore.instance,
-    ])
-      ..addListener(markChanged);
-    switch (action) {
-      case InsightAction.addExpense:
-        await showAddExpenseSheet(context);
-      case InsightAction.addIncome:
-        await showAddIncomeSheet(context);
-      case InsightAction.createGoal:
-        await showCreateGoalSheet(context);
-      case InsightAction.manualSave:
-        await showManualSaveSheet(context);
-      case InsightAction.obligations:
-        await showObligationsSheet(context);
-      case InsightAction.shoppingList:
-        await showShoppingListSheet(context);
-      case InsightAction.expenseHistory:
-        await Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => const TransactionHistoryScreen.expenses(),
-          ),
-        );
+    ])..addListener(markChanged);
+    try {
+      switch (action) {
+        case InsightAction.addExpense:
+          await showAddExpenseSheet(context);
+        case InsightAction.addIncome:
+          await showAddIncomeSheet(context);
+        case InsightAction.createGoal:
+          await showCreateGoalSheet(context);
+        case InsightAction.manualSave:
+          await showManualSaveSheet(context);
+        case InsightAction.obligations:
+          await showObligationsSheet(context);
+        case InsightAction.shoppingList:
+          await showShoppingListSheet(context);
+        case InsightAction.expenseHistory:
+          await Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const TransactionHistoryScreen.expenses(),
+            ),
+          );
+      }
+    } finally {
+      // Detach even when a sheet throws, so the stores do not keep it.
+      stores.removeListener(markChanged);
     }
-    stores.removeListener(markChanged);
     if (!changed || !mounted) return;
     // The data may have changed; refresh the reading quietly.
-    if (mounted) _generate(quick: true);
+    _generate(quick: true);
   }
 
-  // Visible part of a segment that starts at [offset] in the stream.
+  /// Visible part of a segment that starts at [offset] in the stream.
   String _slice(String text, int offset) {
     final count = (_revealed - offset).clamp(0, text.length);
     return text.substring(0, count);
   }
 
+  /// Whether the typing cursor is currently inside this segment.
   bool _typingAt(String text, int offset) =>
       _phase == _Phase.writing &&
       _revealed > offset &&
@@ -288,6 +334,7 @@ class _SmartAnalysisScreenState extends State<SmartAnalysisScreen>
       backgroundColor: palette.background,
       body: Stack(
         children: [
+          // Animated glow behind everything; calmer once done.
           Positioned.fill(
             child: RepaintBoundary(
               child: SmartGlowBackground(intensity: generating ? 1 : 0.4),
@@ -297,13 +344,14 @@ class _SmartAnalysisScreenState extends State<SmartAnalysisScreen>
             top: false,
             child: Column(
               children: [
-                WaffrBackHeader(
-                  title: 'التحليل الذكي',
-                ),
+                // Header, scope chips, then the headline row.
+                WaffrBackHeader(title: 'التحليل الذكي'),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(18, 4, 18, 12),
                   child: SheetChoiceChips(
-                    options: [for (final scope in InsightScope.values) scope.label],
+                    options: [
+                      for (final scope in InsightScope.values) scope.label,
+                    ],
                     selected: _scope.label,
                     onSelected: _selectScope,
                   ),
@@ -335,8 +383,8 @@ class _SmartAnalysisScreenState extends State<SmartAnalysisScreen>
     );
   }
 
-  // The spark stays in one place across thinking and writing, so the hero
-  // from the button lands on it and there is never a second copy.
+  /// The spark stays in one place across thinking and writing, so the hero
+  /// from the button lands on it and there is never a second copy.
   Widget _headlineRow(AppPalette palette) {
     final report = _report;
     final thinking = _phase == _Phase.thinking || report == null;
@@ -394,7 +442,10 @@ class _SmartAnalysisScreenState extends State<SmartAnalysisScreen>
     );
   }
 
+  /// Health gauge, summary and insight cards, each shown once the typing
+  /// stream reaches it.
   Widget _reportView(SmartReport report, AppPalette palette) {
+    // Stream offsets: headline, then summary, then each card body in order.
     var offset = report.headline.length;
     final summaryAt = offset;
     offset += report.summary.length;
@@ -417,6 +468,7 @@ class _SmartAnalysisScreenState extends State<SmartAnalysisScreen>
       key: ValueKey('report-$_run'),
       padding: const EdgeInsets.fromLTRB(18, 4, 18, 28),
       children: [
+        // Health gauge appears with the summary.
         if (report.healthScore != null && _revealed > summaryAt) ...[
           const SizedBox(height: 8),
           Reveal(
@@ -451,9 +503,13 @@ class _SmartAnalysisScreenState extends State<SmartAnalysisScreen>
           ),
         ],
         const SizedBox(height: 16),
+        // A card appears once typing reaches its body (or at once when it has
+        // none).
         for (var i = 0; i < insights.length; i++)
           if (_revealed >= bodyOffsets[i] &&
-              (_revealed > bodyOffsets[i] || insights[i].body.isEmpty || _phase == _Phase.done))
+              (_revealed > bodyOffsets[i] ||
+                  insights[i].body.isEmpty ||
+                  _phase == _Phase.done))
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: Reveal(
@@ -478,484 +534,4 @@ class _SmartAnalysisScreenState extends State<SmartAnalysisScreen>
       ],
     );
   }
-}
-
-class _ThinkingView extends StatelessWidget {
-  const _ThinkingView({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(18, 10, 18, 40),
-      children: [
-        const _Shimmer(widths: [1, 0.86, 0.62]),
-        const SizedBox(height: 18),
-        for (var i = 0; i < 3; i++) ...[
-          GlassContainer(
-            colorType: GlassColorType.surface,
-            borderRadius: 22,
-            padding: const EdgeInsets.all(16),
-            child: _Shimmer(widths: [0.5, 1, 0.78 - i * 0.12]),
-          ),
-          const SizedBox(height: 10),
-        ],
-      ],
-    );
-  }
-}
-
-// Placeholder lines with a moving highlight, in the glow colors.
-class _Shimmer extends StatefulWidget {
-  final List<double> widths;
-
-  const _Shimmer({required this.widths});
-
-  @override
-  State<_Shimmer> createState() => _ShimmerState();
-}
-
-class _ShimmerState extends State<_Shimmer>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _sweep = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1300),
-  );
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (!AppMotion.enabled(context)) {
-      _sweep.stop();
-    } else if (!_sweep.isAnimating) {
-      _sweep.repeat();
-    }
-  }
-
-  @override
-  void dispose() {
-    _sweep.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppPalette.of(context);
-    final colors = smartGlowColors(context);
-    final base = palette.textPrimary.withValues(alpha: 0.07);
-    return AnimatedBuilder(
-      animation: _sweep,
-      builder: (context, _) {
-        final shift = _sweep.value * 3 - 1;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (final width in widget.widths)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: FractionallySizedBox(
-                  alignment: AlignmentDirectional.centerStart,
-                  widthFactor: width,
-                  child: Container(
-                    height: 12,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(999),
-                      gradient: LinearGradient(
-                        begin: Alignment(shift - 1, 0),
-                        end: Alignment(shift + 1, 0),
-                        colors: [
-                          base,
-                          colors[2].withValues(alpha: 0.28),
-                          colors[0].withValues(alpha: 0.22),
-                          base,
-                        ],
-                        stops: const [0.0, 0.4, 0.6, 1.0],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-// Text that is still being written, with a glowing caret at its end.
-class _TypedText extends StatelessWidget {
-  final String text;
-  final bool typing;
-  final TextStyle style;
-
-  const _TypedText({
-    super.key,
-    required this.text,
-    required this.typing,
-    required this.style,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Text.rich(
-      TextSpan(
-        style: style,
-        children: [
-          TextSpan(text: text),
-          if (typing)
-            const WidgetSpan(
-              alignment: PlaceholderAlignment.middle,
-              child: _Caret(),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Caret extends StatelessWidget {
-  const _Caret();
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = smartGlowColors(context);
-    return Container(
-      width: 9,
-      height: 9,
-      margin: const EdgeInsetsDirectional.only(start: 4),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(colors: [colors[0], colors[2]]),
-        boxShadow: [
-          BoxShadow(color: colors[2].withValues(alpha: 0.6), blurRadius: 8),
-        ],
-      ),
-    );
-  }
-}
-
-class _InsightCard extends StatelessWidget {
-  final SmartInsight insight;
-  final String body;
-  final bool typing;
-  final bool expanded;
-  final bool interactive;
-  final VoidCallback onToggle;
-  final ValueChanged<InsightAction> onAction;
-
-  const _InsightCard({
-    required this.insight,
-    required this.body,
-    required this.typing,
-    required this.expanded,
-    required this.interactive,
-    required this.onToggle,
-    required this.onAction,
-  });
-
-  Color _toneColor(BuildContext context, AppPalette palette) =>
-      switch (insight.tone) {
-        InsightTone.warning => AppColors.warningOf(context),
-        InsightTone.positive => palette.accent,
-        InsightTone.tip => const Color(0xFF3FA7C9),
-        InsightTone.info => const Color(0xFF6E93C9),
-      };
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppPalette.of(context);
-    final tone = _toneColor(context, palette);
-    final hasMore = insight.detail != null || insight.action != null;
-
-    return GestureDetector(
-      onTap: interactive && hasMore ? onToggle : null,
-      child: GlassContainer(
-        colorType: GlassColorType.surface,
-        borderRadius: 22,
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-        // While the text is being typed the card simply grows with it; an
-        // animated resize lagged behind each new line and made the cards
-        // below move in steps. It animates only for expand/collapse.
-        child: AnimatedSize(
-          duration: typing
-              ? Duration.zero
-              : AppMotion.of(context, AppMotion.medium),
-          curve: AppMotion.enter,
-          alignment: Alignment.topCenter,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: tone.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(13),
-                    ),
-                    child: Icon(insight.icon, size: 20, color: tone),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          insight.title,
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontFamilyFallback: const ['Tajawal'],
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            color: palette.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        _TypedText(
-                          text: body,
-                          typing: typing,
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontFamilyFallback: const ['Tajawal'],
-                            fontSize: 13.5,
-                            height: 1.55,
-                            color: palette.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (hasMore && interactive)
-                    AnimatedRotation(
-                      turns: expanded ? 0.5 : 0,
-                      duration: AppMotion.of(context, AppMotion.medium),
-                      child: Icon(
-                        Icons.expand_more_rounded,
-                        color: palette.textSecondary,
-                      ),
-                    ),
-                ],
-              ),
-              if (expanded) ...[
-                if (insight.detail != null) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: tone.withValues(alpha: 0.07),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Text(
-                      insight.detail!,
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontFamilyFallback: const ['Tajawal'],
-                        fontSize: 12.5,
-                        height: 1.7,
-                        color: palette.textPrimary,
-                      ),
-                    ),
-                  ),
-                ],
-                if (insight.action != null) ...[
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: TextButton.icon(
-                      onPressed: () => onAction(insight.action!),
-                      style: TextButton.styleFrom(
-                        foregroundColor: tone,
-                        backgroundColor: tone.withValues(alpha: 0.12),
-                        shape: const StadiumBorder(),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 8,
-                        ),
-                      ),
-                      icon: const Icon(Icons.arrow_back_rounded, size: 18),
-                      label: Text(
-                        insight.action!.label,
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          fontFamilyFallback: ['Tajawal'],
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// Ring gauge for the 0-100 health score, counting up as it appears.
-// Tapping it shows how each part contributed.
-class _HealthGauge extends StatelessWidget {
-  final int score;
-  final String title;
-  final String? detail;
-  final bool expanded;
-  final VoidCallback onToggle;
-
-  const _HealthGauge({
-    required this.score,
-    required this.title,
-    required this.detail,
-    required this.expanded,
-    required this.onToggle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppPalette.of(context);
-    final colors = smartGlowColors(context);
-    return GestureDetector(
-      onTap: detail == null ? null : onToggle,
-      child: GlassContainer(
-        colorType: GlassColorType.surface,
-        borderRadius: 22,
-        padding: const EdgeInsets.all(16),
-        child: AnimatedSize(
-          duration: AppMotion.of(context, AppMotion.medium),
-          curve: AppMotion.enter,
-          alignment: Alignment.topCenter,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  SizedBox.square(
-                    dimension: 74,
-                    child: TweenAnimationBuilder<double>(
-                      tween: Tween<double>(begin: 0, end: score / 100),
-                      duration: AppMotion.of(
-                        context,
-                        const Duration(milliseconds: 1100),
-                      ),
-                      curve: AppMotion.enter,
-                      builder: (context, value, _) {
-                        return CustomPaint(
-                          painter: _GaugePainter(
-                            value: value,
-                            track: palette.textPrimary.withValues(alpha: 0.08),
-                            colors: colors,
-                          ),
-                          child: Center(
-                            child: Text(
-                              '${(value * 100).round()}',
-                              style: TextStyle(
-                                fontFamily: 'Outfit',
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                color: palette.textPrimary,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontFamilyFallback: const ['Tajawal'],
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            color: palette.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'من 100، يجمع التوفير وكفاية الرصيد واتجاه الصرف والالتزامات وانتظام التسجيل.',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontFamilyFallback: const ['Tajawal'],
-                            fontSize: 12,
-                            height: 1.5,
-                            color: palette.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (detail != null)
-                    AnimatedRotation(
-                      turns: expanded ? 0.5 : 0,
-                      duration: AppMotion.of(context, AppMotion.medium),
-                      child: Icon(
-                        Icons.expand_more_rounded,
-                        color: palette.textSecondary,
-                      ),
-                    ),
-                ],
-              ),
-              if (expanded && detail != null) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: colors[2].withValues(alpha: 0.07),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Text(
-                    detail!,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontFamilyFallback: const ['Tajawal'],
-                      fontSize: 12.5,
-                      height: 1.7,
-                      color: palette.textPrimary,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _GaugePainter extends CustomPainter {
-  final double value;
-  final Color track;
-  final List<Color> colors;
-
-  _GaugePainter({required this.value, required this.track, required this.colors});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = (Offset.zero & size).deflate(5);
-    final base = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 8
-      ..color = track;
-    canvas.drawArc(rect, 0, 2 * math.pi, false, base);
-    final arc = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 8
-      ..strokeCap = StrokeCap.round
-      ..shader = SweepGradient(
-        startAngle: -math.pi / 2,
-        endAngle: 3 * math.pi / 2,
-        colors: [colors[0], colors[1], colors[2], colors[3]],
-      ).createShader(rect);
-    canvas.drawArc(rect, -math.pi / 2, 2 * math.pi * value, false, arc);
-  }
-
-  @override
-  bool shouldRepaint(_GaugePainter old) => old.value != value;
 }

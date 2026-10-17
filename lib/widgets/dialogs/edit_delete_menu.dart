@@ -3,8 +3,16 @@
 
 import 'package:flutter/material.dart';
 import 'package:waffr/core/theme/app_color.dart';
+import 'package:waffr/core/theme/app_palette.dart';
 
-enum EditDeleteAction { edit, delete }
+/// What the user picked in the long-press menu.
+enum EditDeleteAction {
+  /// Edit the item.
+  edit,
+
+  /// Delete the item.
+  delete,
+}
 
 /// Opens the menu over the widget at [anchorContext]. [allowEdit] hides the
 /// edit row when only removal makes sense.
@@ -18,10 +26,9 @@ Future<EditDeleteAction?> showEditDeleteMenu(
 
   final origin = box.localToGlobal(Offset.zero);
   final size = box.size;
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  final surface = isDark ? AppColors.darkSurface : AppColors.lightSurface;
-  final textPrimary =
-      isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
+  final palette = AppPalette.of(context);
+  final surface = palette.surface;
+  final textPrimary = palette.textPrimary;
   final deleteColor = AppColors.destructiveOf(context);
 
   return showMenu<EditDeleteAction>(

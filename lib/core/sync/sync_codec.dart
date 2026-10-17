@@ -102,7 +102,8 @@ Future<EncodedSyncRequest> encodeSyncRequest(SyncRequestJob job) async {
       if (row is! Map) continue;
       final id = row['client_id']?.toString();
       final print = syncRowFingerprint(row);
-      final unchanged = known != null &&
+      final unchanged =
+          known != null &&
           id != null &&
           !deleted.contains(id) &&
           known[id] == print;
@@ -153,17 +154,17 @@ Future<DecodedSyncResponse> decodeSyncResponseInBackground(
   String body,
   Uint8List keyBytes,
 ) {
-  return compute(
-    decodeSyncResponse,
-    (body: body, keyBytes: keyBytes),
-    debugLabel: 'decode sync response',
-  );
+  return compute(decodeSyncResponse, (
+    body: body,
+    keyBytes: keyBytes,
+  ), debugLabel: 'decode sync response');
 }
 
 Set<String> _deletedIds(Object? deletes) {
   if (deletes is! List) return const {};
   return {
     for (final item in deletes)
-      if (item is Map && item['client_id'] != null) item['client_id'].toString(),
+      if (item is Map && item['client_id'] != null)
+        item['client_id'].toString(),
   };
 }

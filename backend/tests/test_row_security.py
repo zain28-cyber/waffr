@@ -9,6 +9,7 @@ from sqlalchemy.exc import DBAPIError
 
 @pytest.fixture
 def db(main_module):
+    """A session with no user bound."""
     from database import SessionLocal
 
     session = SessionLocal()

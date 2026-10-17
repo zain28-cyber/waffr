@@ -1,11 +1,18 @@
 // Country catalog for the profile form: Arabic name and international
 // calling code. Arab countries come first, then the rest by Arabic name.
 
+/// One country: ISO code, Arabic name and calling code.
 class CountryInfo {
+  /// ISO 3166 alpha-2 code ("SY").
   final String iso;
+
+  /// Arabic name shown in the picker.
   final String arabicName;
+
+  /// Calling code without the plus ("963").
   final String dialCode;
 
+  /// A country entry.
   const CountryInfo({
     required this.iso,
     required this.arabicName,
@@ -16,11 +23,11 @@ class CountryInfo {
   String get dialLabel => '+$dialCode';
 }
 
+/// The catalog and its search.
 class Countries {
   Countries._();
 
-  static const String defaultIso = 'SY';
-
+  /// Arab countries, Syria first.
   static const List<CountryInfo> arab = [
     CountryInfo(iso: 'SY', arabicName: 'سوريا', dialCode: '963'),
     CountryInfo(iso: 'LB', arabicName: 'لبنان', dialCode: '961'),
@@ -46,6 +53,7 @@ class Countries {
     CountryInfo(iso: 'KM', arabicName: 'جزر القمر', dialCode: '269'),
   ];
 
+  /// Every other country, by Arabic name.
   static const List<CountryInfo> others = [
     CountryInfo(iso: 'ET', arabicName: 'إثيوبيا', dialCode: '251'),
     CountryInfo(iso: 'AZ', arabicName: 'أذربيجان', dialCode: '994'),
@@ -166,25 +174,8 @@ class Countries {
     CountryInfo(iso: 'GR', arabicName: 'اليونان', dialCode: '30'),
   ];
 
+  /// [arab] then [others].
   static const List<CountryInfo> all = [...arab, ...others];
-
-  static CountryInfo? byIso(String? iso) {
-    final code = (iso ?? '').trim().toUpperCase();
-    for (final item in all) {
-      if (item.iso == code) return item;
-    }
-    return null;
-  }
-
-  /// Match by the Arabic name saved on older profiles.
-  static CountryInfo? byName(String? name) {
-    final value = (name ?? '').trim();
-    if (value.isEmpty) return null;
-    for (final item in all) {
-      if (item.arabicName == value) return item;
-    }
-    return null;
-  }
 
   /// Name, ISO code or calling code. Arabic letter variants are folded so
   /// "الاردن" finds "الأردن".
@@ -201,6 +192,7 @@ class Countries {
     ];
   }
 
+  /// Lower case without the hamza and ta marbuta variants, for search.
   static String _fold(String value) {
     return value
         .trim()

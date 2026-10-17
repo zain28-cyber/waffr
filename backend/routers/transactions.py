@@ -1,3 +1,5 @@
+"""/transactions: income and expense rows, created idempotently by client id."""
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
@@ -30,6 +32,7 @@ def list_transactions(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """The user's live transactions, newest first, optionally of one type."""
     query = db.query(Transaction).filter(
         Transaction.user_id == current_user.id,
         Transaction.deleted_at.is_(None),
@@ -46,7 +49,9 @@ def create_transaction(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Create a transaction, or return the one with the same client or source id."""
     client_id = normalize_client_id(data.client_id)
+    # Idempotent: the same client id or source id returns the stored row.
     existing = find_by_client_id(db, Transaction, current_user.id, client_id)
     if existing is not None:
         return _to_out(existing)
@@ -64,6 +69,7 @@ def create_transaction(
         if by_source is not None:
             return _to_out(by_source)
 
+    # New row; a concurrent create with the same ids returns the winner.
     frequency, is_recurring, recurring_period = apply_frequency(data.frequency)
 
     row = Transaction(
@@ -112,6 +118,7 @@ def get_transaction(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """One transaction, or 404."""
     row = owned_or_404(db, Transaction, transaction_id, current_user.id)
     return _to_out(row)
 
@@ -123,6 +130,7 @@ def update_transaction(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Change the fields sent."""
     row = owned_or_404(db, Transaction, transaction_id, current_user.id)
     updates = data.model_dump(exclude_unset=True)
 
@@ -157,6 +165,7 @@ def delete_transaction(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Soft-delete a transaction."""
     row = owned_or_404(db, Transaction, transaction_id, current_user.id)
     row.deleted_at = utc_now()
     row.updated_at = utc_now()

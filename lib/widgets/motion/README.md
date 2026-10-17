@@ -1,5 +1,10 @@
 # Motion widgets
 
+| File | Contents |
+| --- | --- |
+| `motion.dart` | `Reveal`, `staggered()`, `RollingMoney`, `RollingText`, `AnimatedRatio`, `RevealClip`. |
+| `active_listenable_builder.dart` | `ActiveListenableBuilder`: a `ListenableBuilder` that sleeps while its tab is hidden. |
+
 `AppMotion` owns durations, curves and the reduced-motion setting.
 `AppMotion.enabled(context)` also checks the enclosing `TickerMode`: repeating
 effects should sleep when their page is retained outside the visible tab.

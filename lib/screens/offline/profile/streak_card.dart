@@ -12,13 +12,20 @@ import 'package:waffr/core/utils/money.dart';
 import 'package:waffr/widgets/brand/waffr_logo.dart';
 import 'package:waffr/widgets/containers/glass.dart';
 
+/// Usage streak card for the profile tab. Animates on first build and again
+/// whenever [replayToken] changes; with reduced motion it shows the final
+/// state directly.
 class StreakCard extends StatefulWidget {
+  /// Consecutive days the app has been opened (at least 1).
   final int count;
+
+  /// Last day counted in the streak; today when null.
   final DateTime? lastDay;
 
   /// A new value replays the animation.
   final int replayToken;
 
+  /// Creates a [StreakCard].
   const StreakCard({
     super.key,
     required this.count,
@@ -30,6 +37,8 @@ class StreakCard extends StatefulWidget {
   State<StreakCard> createState() => _StreakCardState();
 }
 
+/// State of [StreakCard]. Owns the single animation controller that drives
+/// the count-up, the ring and the week strip.
 class _StreakCardState extends State<StreakCard>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
@@ -37,15 +46,19 @@ class _StreakCardState extends State<StreakCard>
     duration: const Duration(milliseconds: 1700),
   );
 
+  /// Count-up phase of the controller.
   late final Animation<double> _count = CurvedAnimation(
     parent: _controller,
     curve: const Interval(0.0, 0.55, curve: AppMotion.enter),
   );
+
+  /// Ring fill phase of the controller.
   late final Animation<double> _ring = CurvedAnimation(
     parent: _controller,
     curve: const Interval(0.08, 0.75, curve: AppMotion.enter),
   );
 
+  /// Ensures the first play happens once, when context is available.
   bool _started = false;
 
   @override
@@ -64,6 +77,7 @@ class _StreakCardState extends State<StreakCard>
     if (oldWidget.replayToken != widget.replayToken) _play();
   }
 
+  /// Plays from the start, or jumps to the end with reduced motion.
   void _play() {
     if (AppMotion.reduced(context)) {
       _controller.value = 1;
@@ -81,6 +95,7 @@ class _StreakCardState extends State<StreakCard>
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
+    // Streak window: from `start` to `last`, counted back from the last day.
     final count = widget.count;
     final milestone = nextStreakMilestone(count);
     final left = milestone - count;
@@ -104,6 +119,7 @@ class _StreakCardState extends State<StreakCard>
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // Count, "since" date and days left, beside the milestone ring.
                 Row(
                   children: [
                     Expanded(
@@ -174,6 +190,7 @@ class _StreakCardState extends State<StreakCard>
                   ],
                 ),
                 const SizedBox(height: 16),
+                // This week, Saturday to Friday.
                 _WeekStrip(
                   today: DateTime(today.year, today.month, today.day),
                   start: start,
@@ -190,6 +207,8 @@ class _StreakCardState extends State<StreakCard>
   }
 }
 
+/// Arabic "N days left" phrase with the right number agreement, as in
+/// the examples below.
 // "بقي يوم واحد" / "بقي يومان" / "بقي 5 أيام".
 String _remaining(int left) {
   if (left == 1) return 'بقي يوم واحد';
@@ -197,6 +216,7 @@ String _remaining(int left) {
   return 'بقي $left ${_daysWord(left)}';
 }
 
+/// Arabic counted noun for "day" after [count], per the rule below.
 // Counted noun after a number: 1 يوم, 2-10 أيام, 11+ يوماً.
 String _daysWord(int count) {
   if (count == 1) return 'يوم';
@@ -204,6 +224,7 @@ String _daysWord(int count) {
   return 'يوماً';
 }
 
+/// Outfit/Tajawal text style shared by the card's labels.
 TextStyle _style({
   required double size,
   required Color color,
@@ -220,7 +241,7 @@ TextStyle _style({
   );
 }
 
-// Progress ring toward the next milestone with a soft head and the logo.
+/// Progress ring toward the next milestone with a soft head and the logo.
 class _StreakRing extends StatelessWidget {
   final double progress;
   final AppPalette palette;
@@ -244,6 +265,7 @@ class _StreakRing extends StatelessWidget {
   }
 }
 
+/// Paints the ring track, a gradient arc for [progress] and a glowing head.
 class _RingPainter extends CustomPainter {
   final double progress;
   final Color track;
@@ -255,6 +277,7 @@ class _RingPainter extends CustomPainter {
     required this.fill,
   });
 
+  /// Ring stroke width.
   static const double _stroke = 9;
 
   @override
@@ -317,8 +340,8 @@ class _RingPainter extends CustomPainter {
   }
 }
 
-// The current week, Saturday to Friday, starting on the right. Days inside
-// the streak light up in order; days still ahead stay faded.
+/// The current week, Saturday to Friday, starting on the right. Days inside
+/// the streak light up in order; days still ahead stay faded.
 class _WeekStrip extends StatelessWidget {
   final DateTime today;
   final DateTime start;
@@ -334,6 +357,7 @@ class _WeekStrip extends StatelessWidget {
     required this.palette,
   });
 
+  /// Weekday initials shown above each day.
   static const Map<int, String> _initials = {
     DateTime.saturday: 'س',
     DateTime.sunday: 'ح',
@@ -373,6 +397,8 @@ class _WeekStrip extends StatelessWidget {
   }
 }
 
+/// One day in the week strip: initial plus a circle that fills and shows a
+/// check when the day is in the streak; today gets a ring when it is not.
 class _DayMark extends StatelessWidget {
   final String label;
   final bool active;

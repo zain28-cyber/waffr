@@ -1,3 +1,6 @@
+// Local account data on this device: the guest choice, the display name,
+// and wiping data when the account is deleted or switched.
+
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -15,6 +18,7 @@ import 'package:waffr/core/sync/api_config.dart';
 import 'package:waffr/core/sync/auth_session.dart';
 import 'package:waffr/core/sync/sync_dirty.dart';
 import 'package:waffr/core/prefs/app_prefs.dart';
+import 'package:waffr/core/sync/sync_tombstones.dart';
 
 /// Local account data on this device: the guest choice, the display name,
 /// and wiping data when the account is deleted or switched. Cloud copies go
@@ -22,13 +26,14 @@ import 'package:waffr/core/prefs/app_prefs.dart';
 class BackupService {
   BackupService._();
 
+  /// The app-wide service.
   static final BackupService instance = BackupService._();
 
-  /// مفتاح يدل على أن المستخدم تجاوز شاشة الدخول
-  /// (سواء بحساب أو كضيف).
+  /// Prefs key set once the user passed the sign-in screen (with an
+  /// account or as a guest).
   static const String authChoiceKey = 'auth_choice_made';
 
-  /// مفاتيح تصف حالة هذا الجهاز وجلسته، فلا تُمسح مع بيانات المستخدم.
+  /// Keys that describe this device and its session; a data wipe keeps them.
   static const Set<String> _localOnlyKeys = <String>{
     authChoiceKey,
     AuthSession.tokenKey,
@@ -41,23 +46,24 @@ class BackupService {
 
   final List<VoidCallback> _resetListeners = <VoidCallback>[];
 
-  /// يُستدعى بعد مسح بيانات الجهاز بينما التطبيق يعمل،
-  /// حتى يعيد مسار الإقلاع قراءة الحالة.
+  /// Called after the device data was wiped while the app runs, so the
+  /// startup flow reads the new state.
   void addRestoreListener(VoidCallback listener) {
     _resetListeners.add(listener);
   }
 
+  /// Stops calling [listener] after wipes.
   void removeRestoreListener(VoidCallback listener) {
     _resetListeners.remove(listener);
   }
 
-  /// يمسح البيانات المحلية القابلة للمزامنة قبل حساب آخر.
-  /// يبقى اختيار المظهر الأول حتى لا تُعاد شاشة المظهر بعد اكتمال الإعداد.
+  /// Wipes the syncable local data before another account moves in. The
+  /// first-launch flag and theme stay, so setup is not shown again.
   Future<void> replaceLocalDataForAccountSwitch() async {
     await _clearUserDataKeepingTheme();
   }
 
-  /// متابعة بدون حساب. كل شيء يبقى محلياً ولا يُزامَن.
+  /// Continues without an account: everything stays on the device.
   Future<void> continueAsGuest() async {
     await AuthSession.instance.clearSession();
 
@@ -65,7 +71,7 @@ class BackupService {
     await prefs.setBool(authChoiceKey, true);
   }
 
-  /// حذف بيانات حساب وفّر الحالي من هذا الجهاز.
+  /// Deletes the current account's data from this device.
   Future<void> deleteAccount() async {
     final prefs = await AppPrefs.instance;
     await prefs.setBool(authChoiceKey, true);
@@ -88,13 +94,14 @@ class BackupService {
     await SyncDirty.mark(settings: true);
   }
 
+  /// Tells the restore listeners the data is gone.
   void _notifyReset() {
     for (final listener in List<VoidCallback>.from(_resetListeners)) {
       listener();
     }
   }
 
-  /// بعد المسح يجب أن تقرأ المخازن الحية القيم الجديدة.
+  /// After a wipe every live store must read the new (empty) values.
   Future<void> _reloadStores() async {
     TransactionStore.instance.resetCache();
     CurrencyStore.instance.resetCache();
@@ -105,6 +112,7 @@ class BackupService {
     RecurringExpenseStore.instance.resetCache();
     CategoryStore.instance.resetCache();
     ExpensePresetStore.instance.resetCache();
+    SyncTombstones.instance.resetCache();
 
     await Future.wait<void>(<Future<void>>[
       CurrencyStore.instance.ensureLoaded(),
@@ -136,12 +144,14 @@ class BackupService {
     }
   }
 
+  /// Clears user prefs, then reloads the stores.
   Future<void> _clearUserData() async {
     final prefs = await AppPrefs.instance;
     await _clearUserPrefs(prefs);
     await _reloadStores();
   }
 
+  /// Removes every prefs key except [_localOnlyKeys].
   Future<void> _clearUserPrefs(SharedPreferences prefs) async {
     for (final key in prefs.getKeys().toList()) {
       if (_localOnlyKeys.contains(key)) continue;

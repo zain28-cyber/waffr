@@ -3,20 +3,36 @@
 import 'package:local_auth/local_auth.dart';
 import 'package:waffr/core/prefs/app_prefs.dart';
 
-enum AppLockToggleResult { enabled, disabled, unsupported, cancelled }
+/// What happened when the user flipped the app-lock switch.
+enum AppLockToggleResult {
+  /// The device confirmed the user and the lock is on.
+  enabled,
 
-// Enable or disable requiring authentication when the app opens.
+  /// The lock is off.
+  disabled,
+
+  /// The device has no biometrics or screen lock to use.
+  unsupported,
+
+  /// The user cancelled or failed the confirmation.
+  cancelled,
+}
+
+/// Enables or disables requiring authentication when the app opens.
 class AppLock {
   AppLock._();
 
+  /// Prefs key of the on/off flag.
   static const prefsKey = 'app_lock';
 
+  /// True when the app asks for authentication on open.
   static Future<bool> isEnabled() async {
     final prefs = await AppPrefs.instance;
     return prefs.getBool(prefsKey) ?? false;
   }
 
-  // Turning on prompts the OS authenticator first; turning off just clears the flag.
+  /// Turning on prompts the OS authenticator first; turning off just
+  /// clears the flag. [onEnabled] / [onDisabled] run after a change.
   static Future<AppLockToggleResult> setEnabled({
     required bool enabled,
     required LocalAuthentication auth,
@@ -24,6 +40,7 @@ class AppLock {
     void Function()? onEnabled,
     void Function()? onDisabled,
   }) async {
+    // Turning off needs no confirmation.
     if (!enabled) {
       final prefs = await AppPrefs.instance;
       await prefs.setBool(prefsKey, false);
@@ -31,6 +48,7 @@ class AppLock {
       return AppLockToggleResult.disabled;
     }
 
+    // Turning on: the device must confirm it is the owner first.
     final supported = await auth.isDeviceSupported();
     if (!supported) {
       return AppLockToggleResult.unsupported;
@@ -51,6 +69,7 @@ class AppLock {
       return AppLockToggleResult.cancelled;
     }
 
+    // Confirmed: lock from the next launch on.
     final prefs = await AppPrefs.instance;
     await prefs.setBool(prefsKey, true);
     onEnabled?.call();

@@ -58,6 +58,8 @@ Future<DateTimeRange?> showWaffrDateRangePicker({
   return DateTimeRange(start: result[0], end: result[1]);
 }
 
+/// The dialog behind both pickers: one typed field per date over a
+/// calendar, the active field following the calendar taps.
 class _WaffrDatePickerDialog extends StatefulWidget {
   final String title;
   final List<String> labels;
@@ -76,10 +78,10 @@ class _WaffrDatePickerDialog extends StatefulWidget {
   });
 
   @override
-  State<_WaffrDatePickerDialog> createState() =>
-      _WaffrDatePickerDialogState();
+  State<_WaffrDatePickerDialog> createState() => _WaffrDatePickerDialogState();
 }
 
+/// State of [_WaffrDatePickerDialog].
 class _WaffrDatePickerDialogState extends State<_WaffrDatePickerDialog> {
   late final List<DateTime?> _dates;
   late final List<TextEditingController> _controllers;
@@ -113,9 +115,7 @@ class _WaffrDatePickerDialogState extends State<_WaffrDatePickerDialog> {
     }
     _controllers = [
       for (final date in _dates)
-        TextEditingController(
-          text: date == null ? '' : formatDateInput(date),
-        ),
+        TextEditingController(text: date == null ? '' : formatDateInput(date)),
     ];
     _focusNodes = [
       for (var i = 0; i < _dates.length; i++)
@@ -222,8 +222,10 @@ class _WaffrDatePickerDialogState extends State<_WaffrDatePickerDialog> {
     final theme = Theme.of(context);
     final width = MediaQuery.sizeOf(context).width;
     final selected = _dates[_active];
-    final calendarInitial =
-        selected != null && _selectable(selected) ? selected : null;
+    // The calendar opens on the active field's date when it can be picked.
+    final calendarInitial = selected != null && _selectable(selected)
+        ? selected
+        : null;
 
     return Material(
       color: Colors.transparent,
@@ -258,6 +260,7 @@ class _WaffrDatePickerDialogState extends State<_WaffrDatePickerDialog> {
                   color: palette.textPrimary,
                 ),
               ),
+              // One typed field per date; tapping one makes the calendar follow it.
               const SizedBox(height: 14),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -279,6 +282,8 @@ class _WaffrDatePickerDialogState extends State<_WaffrDatePickerDialog> {
                 ],
               ),
               const SizedBox(height: 6),
+              // The calendar, in the app's colors. Its key changes when a typed date
+              // moves it, so it re-centers on that month.
               Theme(
                 data: theme.copyWith(
                   colorScheme: theme.colorScheme.copyWith(
@@ -296,7 +301,8 @@ class _WaffrDatePickerDialogState extends State<_WaffrDatePickerDialog> {
                   currentDate: _outOfRange(_dayOnly(DateTime.now()))
                       ? _last
                       : null,
-                  initialCalendarMode: widget.startWithYear &&
+                  initialCalendarMode:
+                      widget.startWithYear &&
                           _calendarVersion == 0 &&
                           calendarInitial == null
                       ? DatePickerMode.year
@@ -309,6 +315,7 @@ class _WaffrDatePickerDialogState extends State<_WaffrDatePickerDialog> {
                   onDateChanged: _onCalendarPicked,
                 ),
               ),
+              // Cancel, and confirm once every date is valid.
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -341,7 +348,7 @@ class _WaffrDatePickerDialogState extends State<_WaffrDatePickerDialog> {
   }
 }
 
-// Label plus a DD/MM/YYYY field. The active one carries the accent outline.
+/// Label plus a DD/MM/YYYY field. The active one carries the accent outline.
 class _DateField extends StatelessWidget {
   final String label;
   final TextEditingController controller;

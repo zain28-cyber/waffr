@@ -1,3 +1,10 @@
+"""Password hashing, access tokens, and the signed-in user dependency.
+
+Tokens are HS256 JWTs signed with SECRET_KEY. Each carries the account's
+``token_version``; bumping it (password change or reset) signs out every
+older token.
+"""
+
 import logging
 import os
 import secrets
@@ -45,18 +52,22 @@ _DUMMY_HASH = password_hash.hash(secrets.token_urlsafe(16))
 
 
 def hash_password(password: str) -> str:
+    """Argon2 hash of [password]."""
     return password_hash.hash(password)
 
 
 def verify_password(password: str, hashed_password: str) -> bool:
+    """True when [password] matches [hashed_password]."""
     return password_hash.verify(password, hashed_password)
 
 
 def burn_password_check(password: str) -> None:
+    """Spend the time of a real password check, for unknown accounts."""
     password_hash.verify(password, _DUMMY_HASH)
 
 
 def create_access_token(user: User) -> str:
+    """A signed token for [user], valid for TOKEN_LIFETIME."""
     now = datetime.now(timezone.utc)
 
     payload = {
@@ -102,6 +113,11 @@ def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
     db: Session = Depends(get_db),
 ):
+    """FastAPI dependency: the signed-in user, or 401.
+
+    Also binds the request's database session to that user, so row
+    security limits every later query to their rows.
+    """
     if credentials is None:
         raise HTTPException(
             status_code=401,

@@ -96,6 +96,8 @@ class NewsFeedUnavailable(Exception):
 
 @dataclass(frozen=True)
 class NewsSource:
+    """One RSS feed and the hosts and sections that count as economy news."""
+
     name: str
     feed_url: str
     allowed_hosts: frozenset[str]
@@ -128,6 +130,8 @@ _WP_CREDIT_RE = re.compile(
 
 @dataclass(frozen=True)
 class NewsRefreshResult:
+    """What a refresh fetched, kept and saved, or why it failed."""
+
     ok: bool
     fetched: int = 0
     matched: int = 0
@@ -137,6 +141,8 @@ class NewsRefreshResult:
 
 @dataclass(frozen=True)
 class NormalizedArticle:
+    """A feed entry cleaned and checked, ready to store."""
+
     title: str
     url: str
     guid: str
@@ -149,6 +155,7 @@ _last_result = NewsRefreshResult(ok=False, error="not_run")
 
 
 def clean_text(value: object, limit: int) -> str:
+    """Plain text from feed HTML: entities decoded, tags and bidi marks removed."""
     if value is None:
         return ""
     text = html.unescape(str(value))
@@ -168,6 +175,7 @@ _ECONOMY_KEYWORD_KEYS = tuple(_normalize(keyword) for keyword in ECONOMY_KEYWORD
 
 
 def section_slug(url: str) -> str:
+    """First path segment of [url], lower-cased."""
     path = urlparse(url).path.strip("/")
     if not path:
         return ""
@@ -201,6 +209,7 @@ def is_economy_entry(
 
 
 def parse_published(entry: dict) -> datetime | None:
+    """The entry's publish time in UTC, or None when missing or implausible."""
     parsed = entry.get("published_parsed") or entry.get("updated_parsed")
     if parsed:
         try:
@@ -284,6 +293,7 @@ def _entry_summary(entry: dict) -> str:
 
 
 def normalize_entry(entry: dict, source: NewsSource) -> NormalizedArticle | None:
+    """A storable article from a feed entry, or None to skip it."""
     url = _clean_url(entry.get("link"), source.allowed_hosts)
     title = clean_text(entry.get("title"), TITLE_LIMIT)
     if not url or not title:
@@ -306,6 +316,7 @@ def normalize_entry(entry: dict, source: NewsSource) -> NormalizedArticle | None
 
 
 def parse_feed(payload: bytes, source: NewsSource) -> tuple[int, list[NormalizedArticle]]:
+    """(entries in the feed, economy articles kept) for one payload."""
     parsed = feedparser.parse(payload)
     entries = list(getattr(parsed, "entries", None) or [])
     if not entries and getattr(parsed, "bozo", False):
@@ -351,6 +362,7 @@ class _SourceRedirects(urllib.request.HTTPRedirectHandler):
         self._allowed_hosts = allowed_hosts
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
+        """Follow the redirect only to an allowed HTTPS host."""
         target = urlparse(newurl)
         host = (target.hostname or "").lower()
         if target.scheme != "https" or host not in self._allowed_hosts:
@@ -359,6 +371,7 @@ class _SourceRedirects(urllib.request.HTTPRedirectHandler):
 
 
 def fetch_feed(source: NewsSource) -> bytes:
+    """Download one feed, with retries; NewsFeedUnavailable on failure."""
     last_error: Exception | None = None
     opener = urllib.request.build_opener(_SourceRedirects(source.allowed_hosts))
     for attempt in range(1, FEED_ATTEMPTS + 1):

@@ -5,14 +5,20 @@ import 'package:flutter/material.dart';
 import 'package:waffr/core/theme/app_color.dart';
 import 'package:waffr/core/theme/app_motion.dart';
 
-// Central theme: Outfit (mixed-case Latin) with Tajawal fallback for Arabic.
+/// Central theme: Outfit (mixed-case Latin) with Tajawal fallback for Arabic.
 class AppTheme {
   AppTheme._();
 
+  /// Arabic face, used as the fallback for every style.
   static const String arabic = 'Tajawal';
+
+  /// Latin face (mixed case) and the primary family.
   static const String english = 'Outfit';
+
+  /// Font fallback list for text styles.
   static const List<String> fallback = [arabic];
 
+  /// The light [ThemeData].
   static ThemeData get lightTheme {
     return ThemeData(
       brightness: Brightness.light,
@@ -40,6 +46,7 @@ class AppTheme {
     );
   }
 
+  /// The dark [ThemeData].
   static ThemeData get darkTheme {
     return ThemeData(
       brightness: Brightness.dark,
@@ -74,12 +81,15 @@ class AppTheme {
     final accent = dark ? AppColors.darkAccent : AppColors.lightAccent;
     final onAccent = dark ? AppColors.darkOnAccent : AppColors.lightOnAccent;
     final surface = dark ? AppColors.darkSurface : AppColors.lightSurface;
-    final textPrimary =
-        dark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final textSecondary =
-        dark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
-    final destructive =
-        dark ? AppColors.darkDestructive : AppColors.lightDestructive;
+    final textPrimary = dark
+        ? AppColors.darkTextPrimary
+        : AppColors.lightTextPrimary;
+    final textSecondary = dark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
+    final destructive = dark
+        ? AppColors.darkDestructive
+        : AppColors.lightDestructive;
     final container = accent.withValues(alpha: 0.18);
 
     return ColorScheme(
@@ -181,7 +191,7 @@ class AppTheme {
         fontFamilyFallback: fallback,
         fontSize: 40,
         fontWeight: FontWeight.bold,
-        
+
         color: accent,
       ),
       displayMedium: TextStyle(

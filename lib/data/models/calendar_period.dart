@@ -1,37 +1,61 @@
 // Week/month (and savings-range) windows used for income periods and reports.
 
 import 'package:waffr/data/models/transaction.dart';
+import 'package:waffr/core/utils/calendar_days.dart';
 
-enum SavingsRange { week, month, threeMonths, sixMonths, year }
+/// Window sizes of the savings period pager.
+enum SavingsRange {
+  /// One week (Saturday to Friday).
+  week,
 
-extension SavingsRangeLabel on SavingsRange {
-  String get label => switch (this) {
-        SavingsRange.week => 'أسبوع',
-        SavingsRange.month => 'شهر',
-        SavingsRange.threeMonths => '3 أشهر',
-        SavingsRange.sixMonths => '6 أشهر',
-        SavingsRange.year => 'سنة',
-      };
+  /// One calendar month.
+  month,
+
+  /// A calendar quarter.
+  threeMonths,
+
+  /// A calendar half year.
+  sixMonths,
+
+  /// A calendar year.
+  year,
 }
 
-// Half-open [start, end) calendar slice plus helpers for keys and ranges.
+/// Arabic name of each [SavingsRange].
+extension SavingsRangeLabel on SavingsRange {
+  /// Chip text ("شهر").
+  String get label => switch (this) {
+    SavingsRange.week => 'أسبوع',
+    SavingsRange.month => 'شهر',
+    SavingsRange.threeMonths => '3 أشهر',
+    SavingsRange.sixMonths => '6 أشهر',
+    SavingsRange.year => 'سنة',
+  };
+}
+
+/// Half-open [start, end) calendar slice plus helpers for keys and ranges.
 class CalendarPeriod {
+  /// First instant inside the period.
   final DateTime start;
+
+  /// First instant after the period.
   final DateTime end;
 
+  /// A period from [start] (inclusive) to [end] (exclusive).
   const CalendarPeriod({required this.start, required this.end});
 
-  bool contains(DateTime date) =>
-      !date.isBefore(start) && date.isBefore(end);
+  /// True when [date] falls inside the period.
+  bool contains(DateTime date) => !date.isBefore(start) && date.isBefore(end);
 
+  /// True once the period is over.
   bool get isComplete {
     final now = DateTime.now();
     return !now.isBefore(end);
   }
 
-  // Compact id: weekly `w:…`, monthly `m:…`, or start_end day stamps.
+  /// Compact id: weekly `w:…`, monthly `m:…`, or start_end day stamps.
   String get key {
-    if (end.difference(start).inDays == 7) {
+    if (calendarDaysBetween(start, end) == 7) {
       return weeklyKey(start);
     }
     if (start.day == 1 && end == DateTime(start.year, start.month + 1)) {
@@ -40,25 +64,29 @@ class CalendarPeriod {
     return '${_isoDay(start)}_${_isoDay(end)}';
   }
 
-  // Weeks start Saturday, same rule as ReportScreen.
+  /// Weeks start Saturday, same rule as ReportScreen.
   static DateTime weekStart(DateTime date) {
     final day = DateTime(date.year, date.month, date.day);
     final daysFromSaturday = (day.weekday + 1) % 7;
-    return day.subtract(Duration(days: daysFromSaturday));
+    return addCalendarDays(day, -daysFromSaturday);
   }
 
+  /// First day of [date]'s month.
   static DateTime monthStart(DateTime date) => DateTime(date.year, date.month);
 
+  /// `w:YYYY-MM-DD` of the week holding [date].
   static String weeklyKey(DateTime date) {
     final start = weekStart(date);
     return 'w:${_isoDay(start)}';
   }
 
+  /// `m:YYYY-MM` of the month holding [date].
   static String monthlyKey(DateTime date) {
     final start = monthStart(date);
     return 'm:${start.year}-${_two(start.month)}';
   }
 
+  /// The weekly or monthly key of [date]; empty for no frequency.
   static String keyFor(RecurringFrequency frequency, DateTime date) {
     return switch (frequency) {
       RecurringFrequency.weekly => weeklyKey(date),
@@ -67,13 +95,13 @@ class CalendarPeriod {
     };
   }
 
-  // Turns a stored `w:` / `m:` key back into a period, or null if malformed.
+  /// Turns a stored `w:` / `m:` key back into a period, or null if malformed.
   static CalendarPeriod? parseKey(String key) {
     if (key.startsWith('w:')) {
       final date = DateTime.tryParse(key.substring(2));
       if (date == null) return null;
       final start = weekStart(date);
-      return CalendarPeriod(start: start, end: start.add(const Duration(days: 7)));
+      return CalendarPeriod(start: start, end: addCalendarDays(start, 7));
     }
     if (key.startsWith('m:')) {
       final parts = key.substring(2).split('-');
@@ -90,14 +118,15 @@ class CalendarPeriod {
     return null;
   }
 
-  static CalendarPeriod ofFrequency(RecurringFrequency frequency, DateTime date) {
+  /// The week, month or day (for none) holding [date].
+  static CalendarPeriod ofFrequency(
+    RecurringFrequency frequency,
+    DateTime date,
+  ) {
     switch (frequency) {
       case RecurringFrequency.weekly:
         final start = weekStart(date);
-        return CalendarPeriod(
-          start: start,
-          end: start.add(const Duration(days: 7)),
-        );
+        return CalendarPeriod(start: start, end: addCalendarDays(start, 7));
       case RecurringFrequency.monthly:
         final start = monthStart(date);
         return CalendarPeriod(
@@ -106,22 +135,20 @@ class CalendarPeriod {
         );
       case RecurringFrequency.none:
         final day = DateTime(date.year, date.month, date.day);
-        return CalendarPeriod(
-          start: day,
-          end: day.add(const Duration(days: 1)),
-        );
+        return CalendarPeriod(start: day, end: addCalendarDays(day, 1));
     }
   }
 
+  /// The start of the period after the one starting at [start].
   static DateTime nextStart(RecurringFrequency frequency, DateTime start) {
     return switch (frequency) {
-      RecurringFrequency.weekly => start.add(const Duration(days: 7)),
+      RecurringFrequency.weekly => addCalendarDays(start, 7),
       RecurringFrequency.monthly => DateTime(start.year, start.month + 1),
-      RecurringFrequency.none => start.add(const Duration(days: 1)),
+      RecurringFrequency.none => addCalendarDays(start, 1),
     };
   }
 
-  // Finished period keys from [since] up to (but not including) the current one.
+  /// Finished period keys from [since] up to (but not including) the current one.
   static List<String> completedKeysSince(
     RecurringFrequency frequency,
     DateTime since,
@@ -141,8 +168,12 @@ class CalendarPeriod {
     return keys;
   }
 
-  // Builds a savings-chart window; [offset] steps back by one range each time.
-  static CalendarPeriod forRange(SavingsRange range, int offset, {DateTime? now}) {
+  /// Builds a savings-chart window; [offset] steps back by one range each time.
+  static CalendarPeriod forRange(
+    SavingsRange range,
+    int offset, {
+    DateTime? now,
+  }) {
     final moment = now ?? DateTime.now();
     final today = DateTime(moment.year, moment.month, moment.day);
     late DateTime start;
@@ -150,8 +181,8 @@ class CalendarPeriod {
 
     switch (range) {
       case SavingsRange.week:
-        start = weekStart(today).subtract(Duration(days: offset * 7));
-        end = start.add(const Duration(days: 7));
+        start = addCalendarDays(weekStart(today), -offset * 7);
+        end = addCalendarDays(start, 7);
       case SavingsRange.month:
         start = DateTime(moment.year, moment.month - offset);
         end = DateTime(start.year, start.month + 1);
@@ -171,9 +202,9 @@ class CalendarPeriod {
     return CalendarPeriod(start: start, end: end);
   }
 
-  // Arabic label for a chart period (day span, month name, or year).
+  /// Arabic label for a chart period (day span, month name, or year).
   static String rangeLabel(SavingsRange range, CalendarPeriod period) {
-    final lastDay = period.end.subtract(const Duration(days: 1));
+    final lastDay = addCalendarDays(period.end, -1);
     switch (range) {
       case SavingsRange.week:
         if (period.start.month == lastDay.month &&
@@ -198,6 +229,7 @@ class CalendarPeriod {
     }
   }
 
+  /// "This week", "this month"... for the current window of [range].
   static String currentPeriodCaption(SavingsRange range) {
     return switch (range) {
       SavingsRange.week => 'هذا الأسبوع',
@@ -208,6 +240,7 @@ class CalendarPeriod {
     };
   }
 
+  /// Levantine month names, January first.
   static const List<String> monthNames = [
     'كانون الثاني',
     'شباط',
@@ -223,6 +256,7 @@ class CalendarPeriod {
     'كانون الأول',
   ];
 
+  /// The name of [month] (1-12).
   static String monthName(int month) => monthNames[month - 1];
 
   static String _isoDay(DateTime date) =>

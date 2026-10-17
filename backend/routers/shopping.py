@@ -1,3 +1,5 @@
+"""/shopping-lists and their /items. Deleting a list deletes its items."""
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, selectinload
 
@@ -84,6 +86,7 @@ def list_lists(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """The user's live lists with their items, most recently changed first."""
     rows = (
         db.query(ShoppingList)
         .options(selectinload(ShoppingList.items))
@@ -103,6 +106,7 @@ def create_list(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Create a list, or return the one with the same client id."""
     client_id = normalize_client_id(data.client_id)
     existing = find_by_client_id(db, ShoppingList, current_user.id, client_id)
     if existing is not None:
@@ -131,6 +135,7 @@ def get_list(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """One list with its items, or 404."""
     return _list_out(_owned_list(db, list_id, current_user.id))
 
 
@@ -141,6 +146,7 @@ def update_list(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Rename a list."""
     row = _owned_list(db, list_id, current_user.id)
     if data.name is not None:
         row.name = data.name
@@ -155,6 +161,7 @@ def delete_list(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Soft-delete a list and its items."""
     row = owned_or_404(db, ShoppingList, list_id, current_user.id)
     now = utc_now()
     row.deleted_at = now
@@ -173,6 +180,7 @@ def list_items(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """A list's live items, newest first."""
     shopping_list = _owned_list(db, list_id, current_user.id)
     items = sorted(
         [item for item in shopping_list.items if item.deleted_at is None],
@@ -189,6 +197,7 @@ def create_item(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Add an item; 409 when its client id is already used in another list."""
     _owned_list(db, list_id, current_user.id)
     client_id = normalize_client_id(data.client_id)
     existing = find_by_client_id(db, ShoppingItem, current_user.id, client_id)
@@ -224,6 +233,7 @@ def get_item(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """One item of the list, or 404."""
     return ShoppingItemOut.model_validate(
         _owned_item(db, list_id, item_id, current_user.id)
     )
@@ -237,6 +247,7 @@ def update_item(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Change the fields sent; unpurchasing clears the purchase details."""
     row = _owned_item(db, list_id, item_id, current_user.id)
     updates = data.model_dump(exclude_unset=True)
 
@@ -268,6 +279,7 @@ def delete_item(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Soft-delete an item."""
     row = _owned_item(db, list_id, item_id, current_user.id)
     row.deleted_at = utc_now()
     row.updated_at = utc_now()
